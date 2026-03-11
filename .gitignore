@@ -7,3 +7,4 @@ build/
 *.sock
 *.pid
 .env
+.pytest_cache/
