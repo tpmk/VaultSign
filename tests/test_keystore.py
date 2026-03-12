@@ -34,7 +34,7 @@ def test_decrypt_key(tmp_path):
     ks.add_key(
         name="test-evm",
         key_type="secp256k1",
-        address="0x1234",
+        address="0xe239cdc5fbe977a8a141B72194D3CF8c41bC5BC6",
         private_key=bytearray(raw_key),  # copy
         password=bytearray(b"testpassword123"),
     )
