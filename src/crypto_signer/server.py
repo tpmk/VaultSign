@@ -24,7 +24,6 @@ from .errors import (
 )
 from .keystore import Keystore, KeyEntry
 from .crypto.evm import EVMSigner
-from .crypto.solana import SolanaSigner
 from .security.harden import apply_hardening, lock_key_memory
 from .security.platform import set_file_owner_only
 from .security.zeroize import zeroize
@@ -43,7 +42,6 @@ class SignerServer:
         self._sm = SignerStateMachine()
         self._keystore: Keystore | None = None
         self._evm: EVMSigner | None = None
-        self._solana: SolanaSigner | None = None
         self._socket: socket.socket | None = None
         self._running = False
         self._start_time = time.time()
@@ -99,8 +97,6 @@ class SignerServer:
 
                 if key.key_type == "secp256k1":
                     self._evm = EVMSigner(key.private_key)
-                elif key.key_type == "ed25519":
-                    self._solana = SolanaSigner(key.private_key)
 
             self._sm.transition_to(SignerState.UNLOCKED)
 
@@ -119,9 +115,6 @@ class SignerServer:
             if self._evm:
                 self._evm.zeroize()
                 self._evm = None
-            if self._solana:
-                self._solana.zeroize()
-                self._solana = None
             if self._sm.state == SignerState.UNLOCKED:
                 self._sm.transition_to(SignerState.LOCKED)
 
@@ -224,10 +217,6 @@ class SignerServer:
             if self._evm is None:
                 raise UnsupportedChainError("No EVM key loaded")
             return self._evm
-        elif chain == "solana":
-            if self._solana is None:
-                raise UnsupportedChainError("No Solana key loaded")
-            return self._solana
         raise UnsupportedChainError(f"Unsupported chain: {chain}")
 
     def _handle_get_address(self, params: dict) -> dict:
@@ -239,10 +228,7 @@ class SignerServer:
         self._check_rate_limit()
         chain = params.get("chain", "")
         signer = self._get_chain_signer(chain)
-        if chain == "evm":
-            return signer.sign_transaction(params.get("tx", {}))
-        else:
-            return signer.sign_transaction(params.get("tx", ""))
+        return signer.sign_transaction(params.get("tx", {}))
 
     def _handle_sign_message(self, params: dict) -> dict:
         self._check_rate_limit()
