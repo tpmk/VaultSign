@@ -15,7 +15,7 @@ def _default_socket_path() -> str:
 
 
 class _ChainClient:
-    """Chain-specific sub-client (evm or solana)."""
+    """Chain-specific sub-client."""
 
     def __init__(self, send_fn, chain: str):
         self._send = send_fn
@@ -69,7 +69,6 @@ class SignerClient:
                 self._port = 9473  # default TCP port
 
         self.evm = _ChainClient(self._send, "evm")
-        self.solana = _ChainClient(self._send, "solana")
 
     def _resolve_tcp_from_socket_path(self, socket_path: str) -> None:
         """On Windows, read port/token files from the socket_path's directory."""

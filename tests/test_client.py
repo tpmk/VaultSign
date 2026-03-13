@@ -119,14 +119,6 @@ def test_evm_sign_transaction(mock_server):
     assert result["signed_tx"] == "0xabc"
 
 
-def test_solana_get_address(mock_server):
-    address, set_response = mock_server
-    set_response("get_address", {"address": "SoL123"})
-    client = _make_client(address)
-    addr = client.solana.get_address()
-    assert addr == "SoL123"
-
-
 def test_error_response_raises(mock_server):
     address, set_response = mock_server
     set_response("sign_transaction", error={"code": 1001, "message": "locked"})
