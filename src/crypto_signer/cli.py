@@ -173,6 +173,10 @@ def _derive_from_mnemonic(mnemonic: str, key_type: str) -> bytearray:
             )
             private_key_bytes = bip44_ctx.PrivateKey().Raw().ToBytes()
             return bytearray(private_key_bytes)
+        else:
+            raise click.ClickException(f"Unsupported key type for mnemonic: {key_type}")
+    except click.ClickException:
+        raise
     except Exception as e:
         raise click.ClickException(f"Mnemonic derivation failed: {e}")
 
@@ -378,7 +382,6 @@ def change_password(home):
     try:
         keys = ks.decrypt_all(old_pass)
     except Exception as e:
-        zeroize(old_pass)
         raise click.ClickException(f"Wrong password: {e}")
     finally:
         zeroize(old_pass)

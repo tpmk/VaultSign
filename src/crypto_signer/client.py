@@ -5,7 +5,7 @@ import socket
 import uuid
 from pathlib import Path
 
-from .errors import SignerError, SignerConnectionError
+from .errors import SignerError, SignerConnectionError, IPCProtocolError
 
 _HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
 
@@ -55,9 +55,13 @@ class SignerClient:
         self._socket_path = socket_path
         self._host = host
         self._port = port
+        self._token: str | None = None
 
-        # Default to Unix socket if nothing specified and AF_UNIX is available
-        if not socket_path and not host:
+        if socket_path and not _HAS_AF_UNIX:
+            # Windows: derive TCP connection info from port/token files
+            self._resolve_tcp_from_socket_path(socket_path)
+        elif not socket_path and not host:
+            # Default to Unix socket if AF_UNIX is available
             if _HAS_AF_UNIX:
                 self._socket_path = _default_socket_path()
             else:
@@ -66,6 +70,29 @@ class SignerClient:
 
         self.evm = _ChainClient(self._send, "evm")
         self.solana = _ChainClient(self._send, "solana")
+
+    def _resolve_tcp_from_socket_path(self, socket_path: str) -> None:
+        """On Windows, read port/token files from the socket_path's directory."""
+        sock_dir = Path(socket_path).parent
+        port_file = sock_dir / "signer.port"
+        token_file = sock_dir / "signer.token"
+
+        try:
+            self._port = int(port_file.read_text().strip())
+        except (FileNotFoundError, ValueError) as e:
+            raise SignerConnectionError(
+                f"Cannot find signer port file ({port_file}): {e}"
+            )
+
+        try:
+            self._token = token_file.read_text().strip()
+        except FileNotFoundError as e:
+            raise SignerConnectionError(
+                f"Cannot find signer token file ({token_file}): {e}"
+            )
+
+        self._host = "127.0.0.1"
+        self._socket_path = None  # Use TCP, not Unix
 
     def _connect(self) -> socket.socket:
         """Create and connect a socket."""
@@ -90,6 +117,8 @@ class SignerClient:
             "method": method,
             "params": params or {},
         }
+        if self._token:
+            request["token"] = self._token
         s = self._connect()
         try:
             s.sendall((json.dumps(request) + "\n").encode())
@@ -105,7 +134,13 @@ class SignerClient:
         finally:
             s.close()
 
-        response = json.loads(data.decode().strip())
+        if not data:
+            raise IPCProtocolError("Empty response from signer")
+
+        try:
+            response = json.loads(data.decode().strip())
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise IPCProtocolError(f"Invalid response from signer: {e}") from e
 
         if "error" in response:
             raise SignerError.from_dict(response["error"])

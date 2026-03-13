@@ -62,15 +62,16 @@ def full_env(tmp_path):
             if os.path.exists(sock_path):
                 break
             time.sleep(0.05)
-        client = SignerClient(socket_path=sock_path)
     else:
-        # Windows TCP fallback: wait for server_address to be set
+        # Windows TCP fallback: wait for server to bind and write port file
         for _ in range(50):
             if server.server_address is not None:
                 break
             time.sleep(0.05)
-        host, port = server.server_address
-        client = SignerClient(host=host, port=port)
+
+    # On both platforms, socket_path triggers the right transport:
+    # Unix → AF_UNIX directly; Windows → reads port/token files from same dir
+    client = SignerClient(socket_path=sock_path)
 
     yield server, client
 

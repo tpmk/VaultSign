@@ -26,11 +26,12 @@ def lock_memory(buf: bytearray) -> bool:
 
 def set_file_owner_only(path: str) -> None:
     try:
+        import win32api
         import win32security
         import ntsecuritycon as con
         user_sid = win32security.GetTokenInformation(
             win32security.OpenProcessToken(
-                win32security.GetCurrentProcess(), con.TOKEN_QUERY
+                win32api.GetCurrentProcess(), con.TOKEN_QUERY
             ),
             win32security.TokenUser,
         )[0]

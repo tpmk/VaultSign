@@ -9,7 +9,7 @@ import time
 import pytest
 
 from crypto_signer.client import SignerClient
-from crypto_signer.errors import SignerLockedError, SignerConnectionError
+from crypto_signer.errors import SignerLockedError, SignerConnectionError, IPCProtocolError
 
 _HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
 
@@ -138,4 +138,56 @@ def test_error_response_raises(mock_server):
 def test_connection_error():
     client = SignerClient(host="127.0.0.1", port=1)  # port 1 should refuse connection
     with pytest.raises(SignerConnectionError):
+        client.ping()
+
+
+def _one_shot_server(tmp_path, response_bytes):
+    """Start a one-shot server that sends raw bytes and returns client kwargs."""
+    sock_path = str(tmp_path / "test.sock")
+
+    def serve():
+        if _HAS_AF_UNIX:
+            srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            srv.bind(sock_path)
+        else:
+            srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            srv.bind(("127.0.0.1", 0))
+            serve.address = srv.getsockname()
+        srv.listen(1)
+        conn, _ = srv.accept()
+        conn.recv(4096)
+        if response_bytes is not None:
+            conn.sendall(response_bytes)
+        conn.close()
+        srv.close()
+
+    serve.address = None
+    t = threading.Thread(target=serve, daemon=True)
+    t.start()
+
+    if _HAS_AF_UNIX:
+        for _ in range(50):
+            if os.path.exists(sock_path):
+                break
+            time.sleep(0.05)
+        return {"socket_path": sock_path}
+    else:
+        time.sleep(0.2)
+        return {"host": serve.address[0], "port": serve.address[1]}
+
+
+def test_non_json_response_raises_protocol_error(tmp_path):
+    """Non-JSON response from server should raise IPCProtocolError."""
+    kwargs = _one_shot_server(tmp_path, b"not-json\n")
+    client = SignerClient(**kwargs)
+    with pytest.raises(IPCProtocolError):
+        client.ping()
+
+
+def test_empty_response_raises_protocol_error(tmp_path):
+    """Empty response (server closes connection) should raise IPCProtocolError."""
+    kwargs = _one_shot_server(tmp_path, None)  # close immediately
+    client = SignerClient(**kwargs)
+    with pytest.raises(IPCProtocolError):
         client.ping()

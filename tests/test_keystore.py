@@ -1,6 +1,9 @@
 # tests/test_keystore.py
 import json
 
+import pytest
+
+from crypto_signer.errors import WalletFormatError
 from crypto_signer.keystore import Keystore, KeyEntry
 
 
@@ -116,3 +119,30 @@ def test_list_keys(tmp_path):
     entries = ks.list_keys()
     assert len(entries) == 1
     assert entries[0] == {"name": "my-evm", "key_type": "secp256k1", "address": "0xabc"}
+
+
+def test_load_keystore_missing_fields(tmp_path):
+    """Corrupted keystore with missing fields should raise WalletFormatError."""
+    ks_path = tmp_path / "keystore.json"
+    ks_path.write_text('{"version": 1, "keys": [{"name": "broken"}]}')
+    with pytest.raises(WalletFormatError, match="Invalid key entry"):
+        Keystore.load(str(ks_path))
+
+
+def test_load_keystore_bad_base64(tmp_path):
+    """Corrupted keystore with invalid base64 should raise WalletFormatError."""
+    ks_path = tmp_path / "keystore.json"
+    ks_path.write_text(json.dumps({
+        "version": 1,
+        "keys": [{
+            "name": "bad",
+            "key_type": "secp256k1",
+            "address": "0x1234",
+            "salt": "not-valid-base64!!!",
+            "iv": "also-bad",
+            "encrypted_key": "nope",
+            "tag": "nah",
+        }]
+    }))
+    with pytest.raises(WalletFormatError, match="Invalid key entry"):
+        Keystore.load(str(ks_path))

@@ -248,16 +248,21 @@ class Keystore:
             raise WalletFormatError(f"Unsupported keystore version: {data.get('version')}")
 
         ks = cls(path)
-        for key_data in data.get("keys", []):
-            ks.entries.append(
-                _EncryptedEntry(
-                    name=key_data["name"],
-                    key_type=key_data["key_type"],
-                    address=key_data["address"],
-                    salt=base64.b64decode(key_data["salt"]),
-                    iv=base64.b64decode(key_data["iv"]),
-                    encrypted_key=base64.b64decode(key_data["encrypted_key"]),
-                    tag=base64.b64decode(key_data["tag"]),
+        for i, key_data in enumerate(data.get("keys", [])):
+            try:
+                ks.entries.append(
+                    _EncryptedEntry(
+                        name=key_data["name"],
+                        key_type=key_data["key_type"],
+                        address=key_data["address"],
+                        salt=base64.b64decode(key_data["salt"]),
+                        iv=base64.b64decode(key_data["iv"]),
+                        encrypted_key=base64.b64decode(key_data["encrypted_key"]),
+                        tag=base64.b64decode(key_data["tag"]),
+                    )
                 )
-            )
+            except (KeyError, TypeError, ValueError) as e:
+                raise WalletFormatError(
+                    f"Invalid key entry at index {i}: {e}"
+                ) from e
         return ks

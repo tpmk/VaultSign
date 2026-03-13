@@ -39,6 +39,14 @@ class Config:
         return str(Path(self.home_dir) / "signer.pid")
 
     @property
+    def port_path(self) -> str:
+        return str(Path(self.home_dir) / "signer.port")
+
+    @property
+    def token_path(self) -> str:
+        return str(Path(self.home_dir) / "signer.token")
+
+    @property
     def config_path(self) -> str:
         return str(Path(self.home_dir) / "config.toml")
 

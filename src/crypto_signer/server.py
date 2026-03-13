@@ -16,6 +16,7 @@ from .config import Config
 from .errors import (
     IPCProtocolError,
     InvalidPasswordError,
+    PermissionDeniedError,
     PolicyViolationError,
     SignerError,
     SignerStateError,
@@ -55,6 +56,8 @@ class SignerServer:
         self._lock = threading.Lock()
         # On Windows (TCP mode), store the (host, port) after binding
         self.server_address: tuple[str, int] | None = None
+        self._tcp_mode = False
+        self._tcp_token: str | None = None
 
     def load_keystore(self) -> None:
         self._keystore = Keystore.load(self.config.keystore_path)
@@ -151,6 +154,13 @@ class SignerServer:
         if version != 1:
             err = IPCProtocolError(f"Unsupported protocol version: {version}")
             return (json.dumps({"id": req_id, "error": err.to_dict()}) + "\n").encode()
+
+        # TCP token auth
+        if self._tcp_mode:
+            token = request.get("token")
+            if token != self._tcp_token:
+                err = PermissionDeniedError("Invalid or missing auth token")
+                return (json.dumps({"id": req_id, "error": err.to_dict()}) + "\n").encode()
 
         method = request.get("method", "")
         params = request.get("params", {})
@@ -280,11 +290,25 @@ class SignerServer:
             os.unlink(sock_path)
 
     def _serve_tcp(self) -> None:
-        """Serve on TCP localhost (Windows fallback)."""
+        """Serve on TCP localhost (Windows fallback) with token auth."""
+        self._tcp_mode = True
+
+        # Generate auth token
+        self._tcp_token = os.urandom(32).hex()
+        with open(self.config.token_path, "w") as f:
+            f.write(self._tcp_token)
+        set_file_owner_only(self.config.token_path)
+
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.bind(("127.0.0.1", 0))
         self.server_address = self._socket.getsockname()
+
+        # Write port file so clients can discover us
+        with open(self.config.port_path, "w") as f:
+            f.write(str(self.server_address[1]))
+        set_file_owner_only(self.config.port_path)
+
         self._socket.listen(5)
         self._socket.settimeout(1.0)
         self._running = True
@@ -335,6 +359,12 @@ class SignerServer:
 
     def _cleanup(self) -> None:
         self.lock()
+        if self._tcp_mode:
+            for path in (self.config.port_path, self.config.token_path):
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
         try:
             self._sm.transition_to(SignerState.STOPPED)
         except SignerStateError:

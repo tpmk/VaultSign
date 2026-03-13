@@ -13,12 +13,14 @@ from crypto_signer.config import Config
 from crypto_signer.keystore import Keystore
 
 
-def _send_request(address, request: dict) -> dict:
+def _send_request(address, request: dict, token: str | None = None) -> dict:
     """Helper: send a JSON request to the server and return the response.
 
     address is either a socket path (str) for Unix sockets or a (host, port)
     tuple for TCP sockets.
     """
+    if token is not None:
+        request = {**request, "token": token}
     if isinstance(address, str):
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         s.connect(address)
@@ -78,6 +80,7 @@ def running_server(server_env):
     t.start()
 
     # Wait for the server to be ready
+    token = None
     if hasattr(socket, "AF_UNIX"):
         # Unix: wait for socket file to appear
         for _ in range(50):
@@ -92,42 +95,43 @@ def running_server(server_env):
                 break
             time.sleep(0.05)
         address = server.server_address
+        token = server._tcp_token
 
-    yield server, address
+    yield server, address, token
 
     server.shutdown()
 
 
 def test_ping(running_server):
-    server, address = running_server
+    server, address, token = running_server
     resp = _send_request(address, {
         "version": 1, "id": "1", "method": "ping", "params": {}
-    })
+    }, token=token)
     assert resp["id"] == "1"
     assert resp["result"]["status"] == "ok"
 
 
 def test_status_when_locked(running_server):
-    server, address = running_server
+    server, address, token = running_server
     resp = _send_request(address, {
         "version": 1, "id": "2", "method": "status", "params": {}
-    })
+    }, token=token)
     assert resp["result"]["state"] == "locked"
 
 
 def test_unlock_and_sign(running_server):
-    server, address = running_server
+    server, address, token = running_server
     # Unlock
     resp = _send_request(address, {
         "version": 1, "id": "3", "method": "unlock",
         "params": {"password": "testpass1234"}
-    })
+    }, token=token)
     assert "result" in resp
 
     # Status should be unlocked
     resp = _send_request(address, {
         "version": 1, "id": "4", "method": "status", "params": {}
-    })
+    }, token=token)
     assert resp["result"]["state"] == "unlocked"
 
     # Sign a transaction
@@ -144,45 +148,84 @@ def test_unlock_and_sign(running_server):
                 "chainId": 1,
             }
         }
-    })
+    }, token=token)
     assert "result" in resp
     assert "signed_tx" in resp["result"]
 
 
 def test_sign_when_locked_returns_error(running_server):
-    server, address = running_server
+    server, address, token = running_server
     resp = _send_request(address, {
         "version": 1, "id": "6", "method": "sign_transaction",
         "params": {"chain": "evm", "tx": {}}
-    })
+    }, token=token)
     assert "error" in resp
     assert resp["error"]["code"] == 1001  # SignerLockedError
 
 
 def test_lock_after_unlock(running_server):
-    server, address = running_server
+    server, address, token = running_server
     # Unlock
     _send_request(address, {
         "version": 1, "id": "7", "method": "unlock",
         "params": {"password": "testpass1234"}
-    })
+    }, token=token)
     # Lock
     resp = _send_request(address, {
         "version": 1, "id": "8", "method": "lock", "params": {}
-    })
+    }, token=token)
     assert "result" in resp
 
     # Status should be locked again
     resp = _send_request(address, {
         "version": 1, "id": "9", "method": "status", "params": {}
-    })
+    }, token=token)
     assert resp["result"]["state"] == "locked"
 
 
 def test_invalid_method(running_server):
-    server, address = running_server
+    server, address, token = running_server
     resp = _send_request(address, {
         "version": 1, "id": "10", "method": "nonexistent", "params": {}
-    })
+    }, token=token)
     assert "error" in resp
     assert resp["error"]["code"] == 1008  # IPCProtocolError
+
+
+def test_tcp_token_auth(server_env):
+    """TCP mode requires a valid token; requests without it are rejected."""
+    config, ks_path, sock_path = server_env
+    server = SignerServer(config)
+    server.load_keystore()
+
+    # Force TCP mode
+    import crypto_signer.server as server_mod
+    original = server_mod._HAS_AF_UNIX
+    server_mod._HAS_AF_UNIX = False
+    try:
+        t = threading.Thread(target=server.serve, daemon=True)
+        t.start()
+        for _ in range(50):
+            if server.server_address is not None:
+                break
+            time.sleep(0.05)
+        address = server.server_address
+
+        # Request WITHOUT token should be rejected
+        resp = _send_request(address, {
+            "version": 1, "id": "t1", "method": "ping", "params": {}
+        })
+        assert "error" in resp
+        assert resp["error"]["code"] == 1009  # PermissionDeniedError
+
+        # Request WITH correct token should succeed
+        token = open(config.token_path).read().strip()
+        resp = _send_request(address, {
+            "version": 1, "id": "t2", "method": "ping", "params": {},
+            "token": token,
+        })
+        assert "result" in resp
+        assert resp["result"]["status"] == "ok"
+    finally:
+        server.shutdown()
+        server_mod._HAS_AF_UNIX = original
