@@ -8,21 +8,21 @@ Encrypted wallet + memory-resident signing service for Python crypto automation.
 - Decrypts only into memory after password entry at startup
 - Serves signing requests over Unix domain socket
 - Business scripts never hold private keys directly
-- Supports EVM (Ethereum, Polygon, BSC, etc.) and Solana
+- Supports EVM (Ethereum, Polygon, BSC, etc.)
 
 ## Quick Start
 
 ```bash
-pip install crypto-signer
+uv sync
 
 # Initialize
-crypto-signer init
+uv run crypto-signer init
 
 # Add a key
-crypto-signer add --name my-evm --type evm --key
+uv run crypto-signer add --name my-evm --type evm --key
 
 # Start the signing service
-crypto-signer start
+uv run crypto-signer start
 ```
 
 ## Usage in Python
