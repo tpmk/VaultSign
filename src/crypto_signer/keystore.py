@@ -109,15 +109,6 @@ def _derive_address_from_key(key_type: str, private_key: bytearray) -> str:
             return addr
         except ImportError:
             return ""
-    elif key_type == "ed25519":
-        try:
-            from .crypto.solana import SolanaSigner
-            signer = SolanaSigner(bytearray(private_key))
-            addr = signer.get_address()
-            signer.zeroize()
-            return addr
-        except ImportError:
-            return ""
     return ""
 
 
@@ -138,7 +129,7 @@ class Keystore:
     ) -> None:
         """Encrypt and add a key to the keystore."""
         # v1: one key per chain type
-        chain_types = {"secp256k1": "evm", "ed25519": "solana"}
+        chain_types = {"secp256k1": "evm"}
         chain = chain_types.get(key_type, key_type)
         for entry in self.entries:
             entry_chain = chain_types.get(entry.key_type, entry.key_type)
