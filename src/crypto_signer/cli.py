@@ -36,16 +36,10 @@ def _derive_address(key_type: str, private_key: bytearray) -> str:
         addr = signer.get_address()
         signer.zeroize()
         return addr
-    elif key_type in ("solana", "ed25519"):
-        from .crypto.solana import SolanaSigner
-        signer = SolanaSigner(bytearray(private_key))  # copy
-        addr = signer.get_address()
-        signer.zeroize()
-        return addr
     raise click.ClickException(f"Unsupported type: {key_type}")
 
 
-_TYPE_MAP = {"evm": "secp256k1", "solana": "ed25519"}
+_TYPE_MAP = {"evm": "secp256k1"}
 
 
 @click.group()
@@ -89,7 +83,7 @@ def init(home):
 
 @main.command()
 @click.option("--name", required=True, help="Key name")
-@click.option("--type", "key_type", required=True, type=click.Choice(["evm", "solana"]))
+@click.option("--type", "key_type", required=True, type=click.Choice(["evm"]))
 @click.option("--key", "import_key", is_flag=True, help="Import private key")
 @click.option("--mnemonic", "import_mnemonic", is_flag=True, help="Import from mnemonic")
 @click.option("--home", default=None, help="Override home directory")
@@ -148,7 +142,6 @@ def _derive_from_mnemonic(mnemonic: str, key_type: str) -> bytearray:
     """Derive a private key from a mnemonic phrase using BIP-44 paths.
 
     EVM: m/44'/60'/0'/0/0
-    Solana: m/44'/501'/0'/0'
     """
     try:
         if key_type == "evm":
@@ -156,23 +149,6 @@ def _derive_from_mnemonic(mnemonic: str, key_type: str) -> bytearray:
             Account.enable_unaudited_hdwallet_features()
             acct = Account.from_mnemonic(mnemonic, account_path="m/44'/60'/0'/0/0")
             return bytearray(acct.key)
-        elif key_type == "solana":
-            from bip_utils import (
-                Bip39SeedGenerator,
-                Bip44,
-                Bip44Coins,
-                Bip44Changes,
-            )
-            seed = Bip39SeedGenerator(mnemonic).Generate()
-            bip44_ctx = (
-                Bip44.FromSeed(seed, Bip44Coins.SOLANA)
-                .Purpose()
-                .Coin()
-                .Account(0)
-                .Change(Bip44Changes.CHAIN_EXT)
-            )
-            private_key_bytes = bip44_ctx.PrivateKey().Raw().ToBytes()
-            return bytearray(private_key_bytes)
         else:
             raise click.ClickException(f"Unsupported key type for mnemonic: {key_type}")
     except click.ClickException:
@@ -197,8 +173,9 @@ def list_keys(home):
         click.echo("No keys stored.")
         return
 
+    reverse_type = {v: k for k, v in _TYPE_MAP.items()}
     for k in keys:
-        chain = "evm" if k["key_type"] == "secp256k1" else "solana"
+        chain = reverse_type.get(k["key_type"], k["key_type"])
         click.echo(f"  {k['name']}  [{chain}]  {k['address']}")
 
 
