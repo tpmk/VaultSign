@@ -1,4 +1,11 @@
+import os
+import logging
+import subprocess
 import sys
+
+import pytest
+from unittest.mock import patch
+
 from crypto_signer.security.platform import (
     lock_memory, set_file_owner_only, harden_process, get_peer_credentials, PLATFORM,
 )
@@ -38,3 +45,44 @@ def test_get_peer_credentials_returns_none_for_bad_socket():
     result = get_peer_credentials(s)
     s.close()
     assert result is None
+
+
+def test_set_file_owner_only_icacls_warns_on_failure(tmp_path, caplog):
+    """When win32api is unavailable and icacls fails, a warning is logged."""
+    if sys.platform != "win32":
+        pytest.skip("Windows-only test")
+
+    from crypto_signer.security.platform_win import set_file_owner_only
+
+    f = tmp_path / "test.txt"
+    f.write_text("data")
+
+    # patch.dict sets sys.modules entries to None, causing ImportError on
+    # `import win32api` inside the function body — no reload needed.
+    with patch.dict("sys.modules", {"win32api": None, "win32security": None, "ntsecuritycon": None}), \
+         patch("crypto_signer.security.platform_win.subprocess.run") as mock_run, \
+         caplog.at_level(logging.WARNING):
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=1, stderr=b"access denied",
+        )
+        set_file_owner_only(str(f))
+
+    assert "icacls failed" in caplog.text
+
+
+def test_set_file_owner_only_warns_missing_username(tmp_path, caplog):
+    """When USERNAME env var is missing, a warning is logged."""
+    if sys.platform != "win32":
+        pytest.skip("Windows-only test")
+
+    from crypto_signer.security.platform_win import set_file_owner_only
+
+    f = tmp_path / "test.txt"
+    f.write_text("data")
+
+    with patch.dict("sys.modules", {"win32api": None, "win32security": None, "ntsecuritycon": None}), \
+         patch.dict(os.environ, {"USERDOMAIN": "", "USERNAME": ""}, clear=False), \
+         caplog.at_level(logging.WARNING):
+        set_file_owner_only(str(f))
+
+    assert "USERNAME" in caplog.text

@@ -43,14 +43,23 @@ def set_file_owner_only(path: str) -> None:
         sd.SetSecurityDescriptorDacl(True, dacl, False)
         win32security.SetFileSecurity(path, win32security.DACL_SECURITY_INFORMATION, sd)
     except ImportError:
-        # Use USERDOMAIN\USERNAME for correct ACL resolution on Windows
         domain = os.environ.get("USERDOMAIN", "")
         username = os.environ.get("USERNAME", "")
-        if username:
-            qualified = f"{domain}\\{username}" if domain else username
-            subprocess.run(
-                ["icacls", path, "/inheritance:r", "/grant:r", f"{qualified}:(F)"],
-                capture_output=True, check=False,
+        if not username:
+            logger.warning(
+                "Cannot set file permissions: USERNAME env var not set"
+            )
+            return
+        qualified = f"{domain}\\{username}" if domain else username
+        result = subprocess.run(
+            ["icacls", path, "/inheritance:r", "/grant:r", f"{qualified}:(F)"],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            logger.warning(
+                "icacls failed (rc=%d): %s",
+                result.returncode,
+                result.stderr.decode(errors="replace").strip(),
             )
 
 
