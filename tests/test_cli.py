@@ -1,8 +1,12 @@
 # tests/test_cli.py
 import json
+import os
+import signal
 
+import click
 import pytest
 from click.testing import CliRunner
+from unittest.mock import patch
 
 from crypto_signer.cli import main
 
@@ -74,3 +78,59 @@ def test_remove_key(runner, tmp_path):
 
     data = json.loads(ks_path.read_text())
     assert len(data["keys"]) == 0
+
+
+from crypto_signer.cli import _check_stale_pid
+
+
+def test_check_stale_pid_cleans_dead_process(tmp_path):
+    """Stale PID file (dead process) should be cleaned up."""
+    home = str(tmp_path / ".crypto-signer")
+    os.makedirs(home, exist_ok=True)
+    pid_file = os.path.join(home, "signer.pid")
+
+    # Write a PID that doesn't exist
+    with open(pid_file, "w") as f:
+        f.write("99999999")
+
+    from crypto_signer.config import Config
+    config = Config(home_dir=home)
+
+    with patch("crypto_signer.cli.os.kill", side_effect=OSError("No such process")):
+        _check_stale_pid(config)
+
+    assert not os.path.exists(pid_file)
+
+
+def test_check_stale_pid_aborts_if_alive(tmp_path):
+    """If PID is alive, should raise ClickException."""
+    home = str(tmp_path / ".crypto-signer")
+    os.makedirs(home, exist_ok=True)
+    pid_file = os.path.join(home, "signer.pid")
+
+    with open(pid_file, "w") as f:
+        f.write("12345")
+
+    from crypto_signer.config import Config
+    config = Config(home_dir=home)
+
+    with patch("crypto_signer.cli.os.kill", return_value=None):  # process exists
+        with pytest.raises(click.ClickException, match="already running"):
+            _check_stale_pid(config)
+
+
+def test_check_stale_pid_treats_permission_error_as_alive(tmp_path):
+    """PermissionError means process exists but inaccessible — treat as alive."""
+    home = str(tmp_path / ".crypto-signer")
+    os.makedirs(home, exist_ok=True)
+    pid_file = os.path.join(home, "signer.pid")
+
+    with open(pid_file, "w") as f:
+        f.write("12345")
+
+    from crypto_signer.config import Config
+    config = Config(home_dir=home)
+
+    with patch("crypto_signer.cli.os.kill", side_effect=PermissionError("Access denied")):
+        with pytest.raises(click.ClickException, match="already running"):
+            _check_stale_pid(config)

@@ -42,6 +42,29 @@ def _derive_address(key_type: str, private_key: bytearray) -> str:
 _TYPE_MAP = {"evm": "secp256k1"}
 
 
+def _check_stale_pid(config: Config) -> None:
+    """Check for stale PID file and clean up or abort."""
+    if not os.path.exists(config.pid_path):
+        return
+    try:
+        with open(config.pid_path) as f:
+            pid = int(f.read().strip())
+    except (ValueError, OSError):
+        os.unlink(config.pid_path)
+        return
+    try:
+        os.kill(pid, 0)
+    except PermissionError:
+        # Process exists but inaccessible — treat as alive
+        raise click.ClickException(f"Signer already running (PID {pid})")
+    except OSError:
+        # Process does not exist — clean up stale PID file
+        os.unlink(config.pid_path)
+        return
+    # os.kill succeeded — process is alive
+    raise click.ClickException(f"Signer already running (PID {pid})")
+
+
 @click.group()
 def main():
     """crypto-signer: Encrypted wallet + memory-resident signing service."""
@@ -200,6 +223,7 @@ def start(daemon, home):
     from .security.harden import apply_hardening
 
     config = _get_config(home)
+    _check_stale_pid(config)
     server = SignerServer(config)
     server.load_keystore()
 
@@ -283,6 +307,8 @@ def stop(home):
     try:
         client = SignerClient(socket_path=config.socket_path)
         client._send("shutdown")
+        if os.path.exists(config.pid_path):
+            os.unlink(config.pid_path)
         click.echo("Signer stopped.")
     except Exception as e:
         if os.path.exists(config.pid_path):
