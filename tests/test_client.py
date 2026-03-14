@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from crypto_signer.client import SignerClient
+from crypto_signer.client import SignerClient, _MAX_RESPONSE
 from crypto_signer.errors import SignerLockedError, SignerConnectionError, IPCProtocolError
 
 _HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
@@ -182,4 +182,14 @@ def test_empty_response_raises_protocol_error(tmp_path):
     kwargs = _one_shot_server(tmp_path, None)  # close immediately
     client = SignerClient(**kwargs)
     with pytest.raises(IPCProtocolError):
+        client.ping()
+
+
+def test_oversized_response_raises_protocol_error(tmp_path):
+    """Response exceeding _MAX_RESPONSE should raise IPCProtocolError."""
+    # Send a response larger than the limit (without a newline so client keeps reading)
+    oversized = b"x" * (_MAX_RESPONSE + 1)
+    kwargs = _one_shot_server(tmp_path, oversized)
+    client = SignerClient(**kwargs)
+    with pytest.raises(IPCProtocolError, match="too large"):
         client.ping()

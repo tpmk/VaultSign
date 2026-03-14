@@ -8,6 +8,7 @@ from pathlib import Path
 from .errors import SignerError, SignerConnectionError, IPCProtocolError
 
 _HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
+_MAX_RESPONSE = 1048576  # 1 MB, matches server _MAX_MSG
 
 
 def _default_socket_path() -> str:
@@ -128,6 +129,8 @@ class SignerClient:
                 if not chunk:
                     break
                 data += chunk
+                if len(data) > _MAX_RESPONSE:
+                    raise IPCProtocolError("Response too large")
                 if b"\n" in data:
                     break
         finally:
