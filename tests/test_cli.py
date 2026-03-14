@@ -134,3 +134,24 @@ def test_check_stale_pid_treats_permission_error_as_alive(tmp_path):
     with patch("crypto_signer.cli.os.kill", side_effect=PermissionError("Access denied")):
         with pytest.raises(click.ClickException, match="already running"):
             _check_stale_pid(config)
+
+
+def test_start_daemon_unix_cleanup(tmp_path):
+    """Unix daemon child should clean PID file on signal."""
+    home = str(tmp_path / ".crypto-signer")
+    os.makedirs(home, exist_ok=True)
+    pid_file = os.path.join(home, "signer.pid")
+
+    from crypto_signer.config import Config
+    config = Config(home_dir=home)
+
+    # Write a PID file as the parent would
+    with open(pid_file, "w") as f:
+        f.write(str(os.getpid()))
+
+    # Verify our signal handler cleans up
+    from crypto_signer.cli import _daemon_cleanup_handler
+    handler = _daemon_cleanup_handler(config, None)
+    handler(signal.SIGTERM, None)
+
+    assert not os.path.exists(pid_file)

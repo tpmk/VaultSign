@@ -261,6 +261,16 @@ def start(daemon, home):
     server.serve()
 
 
+def _daemon_cleanup_handler(config, server):
+    """Return a signal handler that cleans up PID file and shuts down server."""
+    def handler(sig, frame):
+        if server is not None:
+            server.shutdown()
+        if os.path.exists(config.pid_path):
+            os.unlink(config.pid_path)
+    return handler
+
+
 def _start_daemon_unix(server, config):
     """Fork to background on Unix."""
     pid = os.fork()
@@ -271,6 +281,9 @@ def _start_daemon_unix(server, config):
         click.echo(f"Daemon started (PID {pid})")
         return
     os.setsid()
+    handler = _daemon_cleanup_handler(config, server)
+    signal.signal(signal.SIGTERM, handler)
+    signal.signal(signal.SIGINT, handler)
     from .security.harden import apply_hardening
     apply_hardening()
     server.serve()
@@ -295,7 +308,12 @@ def _start_daemon_windows(server, config):
     except Exception:
         pass
 
-    t.join()
+    try:
+        t.join()
+    finally:
+        server.shutdown()
+        if os.path.exists(config.pid_path):
+            os.unlink(config.pid_path)
 
 
 @main.command()
