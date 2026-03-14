@@ -25,7 +25,7 @@ def lock_memory(buf: bytearray) -> bool:
             logger.warning("mlock failed: errno=%d", ctypes.get_errno())
             return False
         return True
-    except Exception as e:
+    except (OSError, ValueError, AttributeError) as e:
         logger.warning("mlock unavailable: %s", e)
         return False
 
@@ -46,7 +46,7 @@ def harden_process() -> dict:
             import resource
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
             result["core_dump_disabled"] = True
-    except Exception as e:
+    except (OSError, AttributeError) as e:
         logger.warning("Could not disable core dumps: %s", e)
     try:
         if sys.platform == "linux" and os.path.exists("/proc/swaps"):
@@ -55,7 +55,7 @@ def harden_process() -> dict:
             if len(lines) > 1:
                 logger.warning("Swap is enabled. Private keys could be written to disk.")
                 result["swap_warning"] = True
-    except Exception as e:
+    except OSError as e:
         logger.warning("Could not check swap status: %s", e)
     return result
 
@@ -74,6 +74,6 @@ def get_peer_credentials(sock) -> int | None:
             cred = sock.getsockopt(0, LOCAL_PEERCRED, struct.calcsize("iih16i"))
             uid = struct.unpack_from("iih", cred)[1]
             return uid
-    except Exception:
+    except (OSError, struct.error):
         return None
     return None

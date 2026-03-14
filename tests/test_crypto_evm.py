@@ -1,7 +1,9 @@
 # tests/test_crypto_evm.py
 import pytest
+from unittest.mock import patch
 
 from crypto_signer.crypto.evm import EVMSigner
+from crypto_signer.errors import SigningError
 
 
 # Well-known test private key (DO NOT use in production)
@@ -56,3 +58,17 @@ def test_sign_typed_data(signer):
     value = {"contents": "Hello"}
     result = signer.sign_typed_data(domain, types, value)
     assert "signature" in result
+
+
+def test_sign_transaction_propagates_unexpected_error(signer):
+    """RuntimeError (not in narrowed set) should propagate, not be wrapped."""
+    with patch.object(signer._account, "sign_transaction", side_effect=RuntimeError("unexpected")):
+        with pytest.raises(RuntimeError):
+            signer.sign_transaction({"to": "0x0", "value": 0, "gas": 21000, "gasPrice": 1000000000, "nonce": 0, "chainId": 1})
+
+
+def test_sign_message_wraps_value_error(signer):
+    """ValueError should be wrapped in SigningError."""
+    with patch.object(signer._account, "sign_message", side_effect=ValueError("bad format")):
+        with pytest.raises(SigningError, match="bad format"):
+            signer.sign_message("test")

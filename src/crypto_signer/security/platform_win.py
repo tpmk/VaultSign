@@ -19,7 +19,7 @@ def lock_memory(buf: bytearray) -> bool:
             logger.warning("VirtualLock failed: error=%d", ctypes.GetLastError())
             return False
         return True
-    except Exception as e:
+    except (OSError, ValueError, AttributeError, ctypes.ArgumentError) as e:
         logger.warning("VirtualLock unavailable: %s", e)
         return False
 

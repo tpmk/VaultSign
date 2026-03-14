@@ -27,7 +27,7 @@ class EVMSigner:
                 "signed_tx": raw_hex if raw_hex.startswith("0x") else "0x" + raw_hex,
                 "tx_hash": tx_hash_hex if tx_hash_hex.startswith("0x") else "0x" + tx_hash_hex,
             }
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             raise SigningError(f"EVM sign_transaction failed: {e}")
 
     def sign_message(self, message: str) -> dict:
@@ -37,7 +37,7 @@ class EVMSigner:
             signed = self._account.sign_message(msg)
             sig_hex = signed.signature.hex() if isinstance(signed.signature, (bytes, bytearray)) else str(signed.signature)
             return {"signature": sig_hex if sig_hex.startswith("0x") else "0x" + sig_hex}
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             raise SigningError(f"EVM sign_message failed: {e}")
 
     def sign_typed_data(self, domain: dict, types: dict, value: dict) -> dict:
@@ -51,7 +51,7 @@ class EVMSigner:
             signed = self._account.sign_message(msg)
             sig_hex = signed.signature.hex() if isinstance(signed.signature, (bytes, bytearray)) else str(signed.signature)
             return {"signature": sig_hex if sig_hex.startswith("0x") else "0x" + sig_hex}
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             raise SigningError(f"EVM sign_typed_data failed: {e}")
 
     def zeroize(self) -> None:
