@@ -1,5 +1,6 @@
 """SignerClient — Python client for the crypto-signer daemon."""
 
+import base64
 import json
 import socket
 import uuid
@@ -160,3 +161,12 @@ class SignerClient:
 
     def unlock(self, password: str, timeout: int = 0) -> dict:
         return self._send("unlock", {"password": password, "timeout": timeout})
+
+    def get_key(self, name: str) -> str:
+        """Retrieve a decrypted key by name.
+
+        Returns the key as a string (the original value stored during add).
+        """
+        result = self._send("get_key", {"name": name})
+        key_b64 = result["key"]
+        return base64.b64decode(key_b64).decode("utf-8")

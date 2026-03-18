@@ -1,10 +1,12 @@
 # tests/test_client.py
+import base64
 import json
 import os
 import socket
 import sys
 import threading
 import time
+from unittest.mock import patch
 
 import pytest
 
@@ -193,3 +195,21 @@ def test_oversized_response_raises_protocol_error(tmp_path):
     client = SignerClient(**kwargs)
     with pytest.raises(IPCProtocolError, match="too large"):
         client.ping()
+
+
+def test_get_key_returns_decoded_string():
+    """get_key decodes the base64 key from IPC response."""
+    original_key = "my-lighter-secret-key"
+    mock_result = {
+        "name": "lighter-api",
+        "key_type": "opaque",
+        "key": base64.b64encode(original_key.encode("utf-8")).decode(),
+        "address": None,
+    }
+
+    client = SignerClient(host="127.0.0.1", port=9999)
+    with patch.object(client, "_send", return_value=mock_result) as mock_send:
+        result = client.get_key("lighter-api")
+
+    assert result == original_key
+    mock_send.assert_called_once_with("get_key", {"name": "lighter-api"})
