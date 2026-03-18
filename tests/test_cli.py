@@ -136,6 +136,70 @@ def test_check_stale_pid_treats_permission_error_as_alive(tmp_path):
             _check_stale_pid(config)
 
 
+def test_add_key_auto_detect_evm(runner, tmp_path):
+    """add --key without --type auto-detects secp256k1."""
+    home = str(tmp_path / ".crypto-signer")
+    (tmp_path / ".crypto-signer").mkdir()
+    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
+
+    test_key = "4c0883a69102937d6231471b5dbb6204fe512961708279f15b0d7e4b2cd53f37"
+    input_text = f"{test_key}\ntestpass1234\ntestpass1234\n"
+
+    result = runner.invoke(
+        main,
+        ["add", "--name", "auto-evm", "--key", "--home", home],
+        input=input_text,
+    )
+    assert result.exit_code == 0, f"CLI output: {result.output}"
+
+    data = json.loads(ks_path.read_text())
+    assert data["keys"][0]["key_type"] == "secp256k1"
+    assert data["keys"][0]["address"] is not None
+
+
+def test_add_key_auto_detect_opaque(runner, tmp_path):
+    """add --key without --type falls back to opaque for non-EVM keys."""
+    home = str(tmp_path / ".crypto-signer")
+    (tmp_path / ".crypto-signer").mkdir()
+    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
+
+    input_text = "this-is-a-lighter-api-key-not-hex\ntestpass1234\ntestpass1234\n"
+
+    result = runner.invoke(
+        main,
+        ["add", "--name", "lighter-api", "--key", "--home", home],
+        input=input_text,
+    )
+    assert result.exit_code == 0, f"CLI output: {result.output}"
+
+    data = json.loads(ks_path.read_text())
+    assert data["keys"][0]["key_type"] == "opaque"
+    assert data["keys"][0]["address"] is None
+
+
+def test_add_key_explicit_opaque(runner, tmp_path):
+    """add --type opaque skips auto-detection."""
+    home = str(tmp_path / ".crypto-signer")
+    (tmp_path / ".crypto-signer").mkdir()
+    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
+
+    test_key = "4c0883a69102937d6231471b5dbb6204fe512961708279f15b0d7e4b2cd53f37"
+    input_text = f"{test_key}\ntestpass1234\ntestpass1234\n"
+
+    result = runner.invoke(
+        main,
+        ["add", "--name", "forced-opaque", "--type", "opaque", "--key", "--home", home],
+        input=input_text,
+    )
+    assert result.exit_code == 0, f"CLI output: {result.output}"
+
+    data = json.loads(ks_path.read_text())
+    assert data["keys"][0]["key_type"] == "opaque"
+
+
 def test_start_daemon_unix_cleanup(tmp_path):
     """Unix daemon child should clean PID file on signal."""
     home = str(tmp_path / ".crypto-signer")

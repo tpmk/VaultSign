@@ -106,7 +106,8 @@ def init(home):
 
 @main.command()
 @click.option("--name", required=True, help="Key name")
-@click.option("--type", "key_type", required=True, type=click.Choice(["evm"]))
+@click.option("--type", "key_type", required=False, default=None,
+              type=click.Choice(["evm", "opaque"]), help="Key type (auto-detected if omitted)")
 @click.option("--key", "import_key", is_flag=True, help="Import private key")
 @click.option("--mnemonic", "import_mnemonic", is_flag=True, help="Import from mnemonic")
 @click.option("--home", default=None, help="Override home directory")
@@ -115,20 +116,42 @@ def add(name, key_type, import_key, import_mnemonic, home):
     if not import_key and not import_mnemonic:
         raise click.ClickException("Specify --key or --mnemonic")
 
+    if import_mnemonic and key_type == "opaque":
+        raise click.ClickException("Mnemonic import is not supported for opaque keys")
+
     config = _get_config(home)
     ks = _get_or_create_keystore(config)
-    internal_type = _TYPE_MAP[key_type]
 
-    if import_key:
+    if import_mnemonic:
+        mnemonic = click.prompt("Enter mnemonic phrase", hide_input=True)
+        raw_bytes = _derive_from_mnemonic(mnemonic, "evm")
+        del mnemonic
+        internal_type = "secp256k1"
+        address = _derive_address("evm", raw_bytes)
+    elif key_type == "opaque":
+        raw_input = click.prompt("Enter private key", hide_input=True)
+        raw_bytes = bytearray(raw_input.encode("utf-8"))
+        del raw_input
+        internal_type = "opaque"
+        address = None
+    elif key_type == "evm":
         raw_hex = click.prompt("Enter private key", hide_input=True)
         raw_bytes = bytearray(bytes.fromhex(raw_hex.strip().removeprefix("0x")))
+        address = _derive_address("evm", raw_bytes)
+        internal_type = "secp256k1"
     else:
-        # Mnemonic import
-        mnemonic = click.prompt("Enter mnemonic phrase", hide_input=True)
-        raw_bytes = _derive_from_mnemonic(mnemonic, key_type)
-        del mnemonic
-
-    address = _derive_address(key_type, raw_bytes)
+        # Auto-detect: try EVM first, fall back to opaque
+        raw_input = click.prompt("Enter private key", hide_input=True)
+        try:
+            raw_bytes = bytearray(bytes.fromhex(raw_input.strip().removeprefix("0x")))
+            address = _derive_address("evm", raw_bytes)
+            internal_type = "secp256k1"
+        except Exception:
+            raw_bytes = bytearray(raw_input.encode("utf-8"))
+            internal_type = "opaque"
+            address = None
+            click.echo("Warning: Cannot derive address; storing as opaque key.")
+        del raw_input
 
     password_str = click.prompt("Enter password", hide_input=True)
     confirm_str = click.prompt("Confirm password", hide_input=True)
@@ -158,7 +181,10 @@ def add(name, key_type, import_key, import_mnemonic, home):
     finally:
         zeroize(password)
 
-    click.echo(f"Key '{name}' added. Address: {address}")
+    if address:
+        click.echo(f"Key '{name}' added. Type: {internal_type}, Address: {address}")
+    else:
+        click.echo(f"Key '{name}' added. Type: {internal_type}")
 
 
 def _derive_from_mnemonic(mnemonic: str, key_type: str) -> bytearray:
