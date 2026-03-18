@@ -200,6 +200,28 @@ def test_add_key_explicit_opaque(runner, tmp_path):
     assert data["keys"][0]["key_type"] == "opaque"
 
 
+def test_list_shows_opaque_key(runner, tmp_path):
+    """list command shows opaque keys with (none) for address."""
+    home = str(tmp_path / ".crypto-signer")
+    (tmp_path / ".crypto-signer").mkdir()
+    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
+
+    # Add opaque key
+    runner.invoke(
+        main,
+        ["add", "--name", "lighter-api", "--type", "opaque", "--key", "--home", home],
+        input="some-api-key\ntestpass1234\ntestpass1234\n",
+    )
+
+    result = runner.invoke(main, ["list", "--home", home])
+    assert result.exit_code == 0
+    assert "lighter-api" in result.output
+    assert "opaque" in result.output
+    assert "(none)" in result.output
+    assert "None" not in result.output
+
+
 def test_start_daemon_unix_cleanup(tmp_path):
     """Unix daemon child should clean PID file on signal."""
     home = str(tmp_path / ".crypto-signer")

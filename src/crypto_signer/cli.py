@@ -224,8 +224,9 @@ def list_keys(home):
 
     reverse_type = {v: k for k, v in _TYPE_MAP.items()}
     for k in keys:
-        chain = reverse_type.get(k["key_type"], k["key_type"])
-        click.echo(f"  {k['name']}  [{chain}]  {k['address']}")
+        display_type = reverse_type.get(k["key_type"], k["key_type"])
+        display_addr = k["address"] if k["address"] else "(none)"
+        click.echo(f"  {k['name']}  [{display_type}]  {display_addr}")
 
 
 @main.command()
