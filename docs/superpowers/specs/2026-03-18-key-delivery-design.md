@@ -56,6 +56,16 @@ The `keys` array in `keystore.json` gains support for `key_type: "opaque"`:
 
 The keystore `version` remains `1` — adding `opaque` is backwards-compatible (old keys unchanged, new field value in existing schema).
 
+### Name Uniqueness & One-Per-Chain Relaxation
+
+Key names must be **unique** within the keystore. Attempting to add a key with a duplicate name raises an error.
+
+The existing v1 "one key per chain type" validation applies only to `secp256k1` keys (mapped to chain `"evm"`). Opaque keys are exempt — multiple opaque keys with different names are allowed. This is necessary to support storing API keys for multiple accounts/services simultaneously (e.g., `lighter-api-main`, `lighter-api-sub`).
+
+### Data Model Changes
+
+The `address` field in both `KeyEntry` and `_EncryptedEntry` dataclasses changes from `str` to `str | None` to accommodate opaque keys where no address can be derived.
+
 ### Auto-Detection on Import
 
 When `crypto-signer add --name <name> --key` is invoked without `--type`:
@@ -143,7 +153,15 @@ client.evm.sign_transaction(tx)
 client.evm.get_address()
 ```
 
-`get_key` returns the key as a string (base64-decoded). The caller passes it to the relevant SDK.
+`get_key` returns the key as a string. The full encoding chain:
+
+1. **User inputs** key string via `getpass` (e.g., `"a1b2c3d4e5f6..."`)
+2. **Stored as** `bytearray(input_string.encode("utf-8"))`, then encrypted
+3. **IPC returns** base64-encoded bytes in the `"key"` field
+4. **Client decodes** base64 back to bytes, then `.decode("utf-8")` to recover the original input string
+5. **Caller receives** the same string they originally typed during `crypto-signer add`
+
+This means the caller gets back the exact string they stored, regardless of format (hex, base64, raw token, etc.).
 
 ### Usage Example (copytrade)
 
