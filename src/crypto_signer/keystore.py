@@ -267,3 +267,11 @@ class Keystore:
                     f"Invalid key entry at index {i}: {e}"
                 ) from e
         return ks
+
+    @staticmethod
+    def find_by_name(keys: list[KeyEntry], name: str) -> KeyEntry | None:
+        """Find a decrypted key by name. Returns None if not found."""
+        for key in keys:
+            if key.name == name:
+                return key
+        return None

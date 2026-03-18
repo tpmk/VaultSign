@@ -257,3 +257,35 @@ def test_opaque_and_evm_coexist(tmp_path):
     assert len(decrypted) == 2
     types = {d.key_type for d in decrypted}
     assert types == {"secp256k1", "opaque"}
+
+
+def test_get_decrypted_key_by_name(tmp_path):
+    """Can look up a specific decrypted key by name."""
+    ks_path = tmp_path / "keystore.json"
+    ks = Keystore(str(ks_path))
+    ks.add_key(
+        name="my-evm",
+        key_type="secp256k1",
+        address="0x1a642f0E3c3aF545E7AcBD38b07251B3990914F1",
+        private_key=bytearray(b"\x01" * 32),
+        password=bytearray(b"testpassword123"),
+    )
+    ks.add_key(
+        name="lighter-api",
+        key_type="opaque",
+        address=None,
+        private_key=bytearray(b"lighter-secret"),
+        password=bytearray(b"testpassword123"),
+    )
+    ks.save()
+
+    ks2 = Keystore.load(str(ks_path))
+    decrypted = ks2.decrypt_all(bytearray(b"testpassword123"))
+
+    result = Keystore.find_by_name(decrypted, "lighter-api")
+    assert result is not None
+    assert result.name == "lighter-api"
+    assert bytes(result.private_key) == b"lighter-secret"
+
+    result2 = Keystore.find_by_name(decrypted, "nonexistent")
+    assert result2 is None
