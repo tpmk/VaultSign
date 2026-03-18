@@ -165,8 +165,12 @@ class SignerClient:
     def get_key(self, name: str) -> str:
         """Retrieve a decrypted key by name.
 
-        Returns the key as a string (the original value stored during add).
+        Returns the key as a string: UTF-8 decoded for opaque keys (text input),
+        hex-encoded for binary keys (e.g., secp256k1 raw bytes).
         """
         result = self._send("get_key", {"name": name})
-        key_b64 = result["key"]
-        return base64.b64decode(key_b64).decode("utf-8")
+        key_bytes = base64.b64decode(result["key"])
+        try:
+            return key_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            return key_bytes.hex()
