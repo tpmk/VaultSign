@@ -31,7 +31,7 @@ _KEY_LEN = 32  # AES-256
 class KeyEntry:
     name: str
     key_type: str
-    address: str
+    address: str | None
     # Only populated after decryption:
     private_key: bytearray | None = None
 
@@ -44,7 +44,7 @@ class KeyEntry:
 class _EncryptedEntry:
     name: str
     key_type: str
-    address: str
+    address: str | None
     salt: bytes
     iv: bytes
     encrypted_key: bytes
@@ -123,21 +123,31 @@ class Keystore:
         self,
         name: str,
         key_type: str,
-        address: str,
+        address: str | None,
         private_key: bytearray,
         password: bytearray,
     ) -> None:
         """Encrypt and add a key to the keystore."""
-        # v1: one key per chain type
-        chain_types = {"secp256k1": "evm"}
-        chain = chain_types.get(key_type, key_type)
+        # Name uniqueness check
         for entry in self.entries:
-            entry_chain = chain_types.get(entry.key_type, entry.key_type)
-            if entry_chain == chain:
+            if entry.name == name:
                 raise ValueError(
-                    f"A key for chain type '{chain}' already exists. "
-                    "v1 supports one key per chain type."
+                    f"A key with name '{name}' already exists."
                 )
+
+        # v1: one key per chain type (opaque exempt)
+        if key_type != "opaque":
+            chain_types = {"secp256k1": "evm"}
+            chain = chain_types.get(key_type, key_type)
+            for entry in self.entries:
+                if entry.key_type == "opaque":
+                    continue
+                entry_chain = chain_types.get(entry.key_type, entry.key_type)
+                if entry_chain == chain:
+                    raise ValueError(
+                        f"A key for chain type '{chain}' already exists. "
+                        "v1 supports one key per chain type."
+                    )
 
         salt, iv, ct, tag = _encrypt(private_key, password)
         zeroize(private_key)
@@ -177,7 +187,7 @@ class Keystore:
 
                 # Verify address matches (spec requirement)
                 derived_addr = _derive_address_from_key(entry.key_type, pk)
-                if derived_addr and derived_addr.lower() != entry.address.lower():
+                if derived_addr and entry.address and derived_addr.lower() != entry.address.lower():
                     zeroize(pk)
                     raise WalletFormatError(
                         f"Address mismatch for key '{entry.name}': "
