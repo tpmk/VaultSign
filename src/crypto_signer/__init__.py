@@ -13,6 +13,7 @@ from .errors import (
     WalletFormatError,
     IPCProtocolError,
     PermissionDeniedError,
+    KeyNotFoundError,
 )
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "WalletFormatError",
     "IPCProtocolError",
     "PermissionDeniedError",
+    "KeyNotFoundError",
 ]

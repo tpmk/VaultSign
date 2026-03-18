@@ -60,3 +60,21 @@ def test_error_repr_does_not_leak_secrets():
     r = repr(err)
     assert "SigningError" in r
     assert "failed to sign" in r
+
+
+def test_key_not_found_error_code():
+    from crypto_signer.errors import KeyNotFoundError, ErrorCode
+    err = KeyNotFoundError("key 'foo' not found")
+    assert err.code == ErrorCode.KEY_NOT_FOUND
+    assert err.code.value == 1010
+    d = err.to_dict()
+    assert d["code"] == 1010
+    assert "foo" in d["message"]
+
+
+def test_key_not_found_error_roundtrip():
+    from crypto_signer.errors import KeyNotFoundError, SignerError
+    err = KeyNotFoundError("not found")
+    d = err.to_dict()
+    restored = SignerError.from_dict(d)
+    assert isinstance(restored, KeyNotFoundError)

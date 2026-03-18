@@ -16,6 +16,7 @@ class ErrorCode(IntEnum):
     WALLET_FORMAT = 1007
     IPC_PROTOCOL = 1008
     PERMISSION_DENIED = 1009
+    KEY_NOT_FOUND = 1010
 
 
 _CODE_TO_CLASS: dict[int, type["SignerError"]] = {}
@@ -88,3 +89,7 @@ class IPCProtocolError(SignerError):
 
 class PermissionDeniedError(SignerError):
     code = ErrorCode.PERMISSION_DENIED
+
+
+class KeyNotFoundError(SignerError):
+    code = ErrorCode.KEY_NOT_FOUND
