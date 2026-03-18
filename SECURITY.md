@@ -16,9 +16,20 @@ This package does NOT protect against:
 
 - Private keys are encrypted at rest with AES-256-GCM
 - Password derivation uses Argon2id (memory-hard, GPU-resistant)
-- Decrypted keys exist only in the signer daemon's memory
-- Business processes never hold private keys
+- For `sign_transaction` / `sign_message`: decrypted keys exist only in the signer daemon's memory
 - IPC uses Unix domain sockets with 0600 permissions
+
+### Key Delivery (`get_key`)
+
+The `get_key` method delivers decrypted keys to the calling process via IPC.
+Runtime security of the delivered key is the caller's responsibility. Callers
+should clear keys from memory when no longer needed. For maximum security,
+prefer `sign_transaction` over `get_key` when the signing model allows it.
+
+The `exec` command injects keys as environment variables into a child process.
+This is less secure than the IPC `get_key` method — keys persist in the process
+environment for its lifetime and may be visible via `/proc/pid/environ` on Linux.
+Use `exec` for convenience when IPC integration is not feasible.
 
 ## Known Limitations
 
