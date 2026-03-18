@@ -470,3 +470,45 @@ def change_password(home):
                 zeroize(key.private_key)
 
     click.echo("Password changed successfully.")
+
+
+@main.command("exec", context_settings={"ignore_unknown_options": True})
+@click.option("--inject", multiple=True, help="Inject key as env var: name=ENV_VAR")
+@click.option("--home", default=None, help="Override home directory")
+@click.argument("command", nargs=-1, type=click.UNPROCESSED, required=True)
+def exec_cmd(inject, home, command):
+    """Run a command with injected keys as environment variables."""
+    import subprocess
+
+    if not inject:
+        raise click.ClickException("At least one --inject is required")
+
+    config = _get_config(home)
+
+    from .client import SignerClient
+    from .errors import SignerError
+    client = SignerClient(socket_path=config.socket_path)
+
+    # Parse --inject args and retrieve keys
+    env_vars = {}
+    for mapping in inject:
+        if "=" not in mapping:
+            raise click.ClickException(
+                f"Invalid --inject format: '{mapping}'. Use: name=ENV_VAR"
+            )
+        key_name, env_name = mapping.split("=", 1)
+        try:
+            key_value = client.get_key(key_name)
+        except SignerError as e:
+            raise click.ClickException(f"Failed to get key '{key_name}': {e}")
+        env_vars[env_name] = key_value
+
+    # Build child environment
+    child_env = {**os.environ, **env_vars}
+
+    # Run child process
+    try:
+        result = subprocess.run(list(command), env=child_env)
+        raise SystemExit(result.returncode)
+    except FileNotFoundError:
+        raise click.ClickException(f"Command not found: {command[0]}")

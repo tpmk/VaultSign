@@ -222,6 +222,71 @@ def test_list_shows_opaque_key(runner, tmp_path):
     assert "None" not in result.output
 
 
+def test_exec_injects_env_vars(runner, tmp_path):
+    """exec command injects keys into child process environment."""
+    import os
+    import socket
+    import threading
+    import time
+    from crypto_signer.config import Config
+    from crypto_signer.keystore import Keystore
+    from crypto_signer.server import SignerServer
+
+    home = tmp_path / ".crypto-signer"
+    home.mkdir()
+    sock_path = str(home / "signer.sock")
+
+    # Create keystore with opaque key
+    ks = Keystore(str(home / "keystore.json"))
+    ks.add_key(
+        name="test-secret",
+        key_type="opaque",
+        address=None,
+        private_key=bytearray(b"secret-value-123"),
+        password=bytearray(b"testpass1234"),
+    )
+    ks.save()
+
+    config = Config(home_dir=str(home), socket_path=sock_path, rate_limit=1000)
+    server = SignerServer(config)
+    server.load_keystore()
+    server.unlock(bytearray(b"testpass1234"))
+
+    t = threading.Thread(target=server.serve, daemon=True)
+    t.start()
+
+    # Wait for server ready
+    if hasattr(socket, "AF_UNIX"):
+        for _ in range(50):
+            if os.path.exists(sock_path):
+                break
+            time.sleep(0.05)
+    else:
+        for _ in range(50):
+            if server.server_address is not None:
+                break
+            time.sleep(0.05)
+
+    try:
+        # exec should run a child process; verify via file output
+        # (CliRunner does not capture subprocess stdout, so write to a file)
+        out_file = str(tmp_path / "output.txt")
+        result = runner.invoke(
+            main,
+            [
+                "exec",
+                "--inject", "test-secret=MY_SECRET",
+                "--home", str(home),
+                "--", "python", "-c",
+                f"import os; open(r'{out_file}', 'w').write(os.environ.get('MY_SECRET', 'MISSING'))",
+            ],
+        )
+        assert result.exit_code == 0, f"CLI output: {result.output}\n{result.exception}"
+        assert open(out_file).read() == "secret-value-123"
+    finally:
+        server.shutdown()
+
+
 def test_start_daemon_unix_cleanup(tmp_path):
     """Unix daemon child should clean PID file on signal."""
     home = str(tmp_path / ".crypto-signer")
