@@ -192,6 +192,212 @@ def test_invalid_method(running_server):
     assert resp["error"]["code"] == 1008  # IPCProtocolError
 
 
+@pytest.fixture
+def server_env_with_opaque(tmp_path):
+    """Set up a keystore + config + server with both an EVM key and an opaque key."""
+    home = tmp_path / ".crypto-signer"
+    home.mkdir()
+    ks_path = home / "keystore.json"
+    sock_path = str(home / "signer.sock")
+
+    ks = Keystore(str(ks_path))
+    evm_key = bytearray(bytes.fromhex(
+        "4c0883a69102937d6231471b5dbb6204fe512961708279f15b0d7e4b2cd53f37"
+    ))
+    ks.add_key(
+        name="test-evm",
+        key_type="secp256k1",
+        address="0x864eC9c7662f55Af9f7637162042d9F5b2aDb1dB",
+        private_key=evm_key,
+        password=bytearray(b"testpass1234"),
+    )
+    opaque_key = bytearray(b"my-lighter-secret-key")
+    ks.add_key(
+        name="lighter-api",
+        key_type="opaque",
+        address=None,
+        private_key=opaque_key,
+        password=bytearray(b"testpass1234"),
+    )
+    ks.save()
+
+    config = Config(
+        home_dir=str(home),
+        socket_path=sock_path,
+        rate_limit=1000,
+    )
+    return config, str(ks_path), sock_path
+
+
+@pytest.fixture
+def running_server_with_opaque(server_env_with_opaque):
+    config, ks_path, sock_path = server_env_with_opaque
+    server = SignerServer(config)
+    server.load_keystore()
+
+    t = threading.Thread(target=server.serve, daemon=True)
+    t.start()
+
+    token = None
+    if hasattr(socket, "AF_UNIX"):
+        for _ in range(50):
+            if os.path.exists(sock_path):
+                break
+            time.sleep(0.05)
+        address = sock_path
+    else:
+        for _ in range(50):
+            if server.server_address is not None:
+                break
+            time.sleep(0.05)
+        address = server.server_address
+        token = server._tcp_token
+
+    yield server, address, token
+
+    server.shutdown()
+
+
+def test_get_key_opaque(running_server_with_opaque):
+    import base64
+    server, address, token = running_server_with_opaque
+    _send_request(address, {
+        "version": 1, "id": "gk1", "method": "unlock",
+        "params": {"password": "testpass1234"}
+    }, token=token)
+    resp = _send_request(address, {
+        "version": 1, "id": "gk2", "method": "get_key",
+        "params": {"name": "lighter-api"}
+    }, token=token)
+    assert "result" in resp
+    decoded = base64.b64decode(resp["result"]["key"])
+    assert decoded == b"my-lighter-secret-key"
+    assert resp["result"]["name"] == "lighter-api"
+    assert resp["result"]["key_type"] == "opaque"
+    assert resp["result"]["address"] is None
+
+
+def test_get_key_evm(running_server_with_opaque):
+    server, address, token = running_server_with_opaque
+    _send_request(address, {
+        "version": 1, "id": "gk3", "method": "unlock",
+        "params": {"password": "testpass1234"}
+    }, token=token)
+    resp = _send_request(address, {
+        "version": 1, "id": "gk4", "method": "get_key",
+        "params": {"name": "test-evm"}
+    }, token=token)
+    assert "result" in resp
+    assert resp["result"]["name"] == "test-evm"
+    assert resp["result"]["key_type"] == "secp256k1"
+    assert resp["result"]["address"] == "0x864eC9c7662f55Af9f7637162042d9F5b2aDb1dB"
+    assert "key" in resp["result"]
+
+
+def test_get_key_not_found(running_server_with_opaque):
+    server, address, token = running_server_with_opaque
+    _send_request(address, {
+        "version": 1, "id": "gk5", "method": "unlock",
+        "params": {"password": "testpass1234"}
+    }, token=token)
+    resp = _send_request(address, {
+        "version": 1, "id": "gk6", "method": "get_key",
+        "params": {"name": "nonexistent"}
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1010  # KeyNotFoundError
+
+
+def test_get_key_when_locked(running_server_with_opaque):
+    server, address, token = running_server_with_opaque
+    resp = _send_request(address, {
+        "version": 1, "id": "gk7", "method": "get_key",
+        "params": {"name": "lighter-api"}
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1001  # SignerLockedError
+
+
+def test_get_key_missing_name(running_server_with_opaque):
+    server, address, token = running_server_with_opaque
+    _send_request(address, {
+        "version": 1, "id": "gk8", "method": "unlock",
+        "params": {"password": "testpass1234"}
+    }, token=token)
+    resp = _send_request(address, {
+        "version": 1, "id": "gk9", "method": "get_key",
+        "params": {}
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008  # IPCProtocolError
+
+
+def test_get_key_rate_limited(tmp_path):
+    home = tmp_path / ".crypto-signer"
+    home.mkdir()
+    ks_path = home / "keystore.json"
+    sock_path = str(home / "signer.sock")
+
+    ks = Keystore(str(ks_path))
+    opaque_key = bytearray(b"my-lighter-secret-key")
+    ks.add_key(
+        name="lighter-api",
+        key_type="opaque",
+        address=None,
+        private_key=opaque_key,
+        password=bytearray(b"testpass1234"),
+    )
+    ks.save()
+
+    config = Config(
+        home_dir=str(home),
+        socket_path=sock_path,
+        rate_limit=2,
+    )
+    server = SignerServer(config)
+    server.load_keystore()
+
+    t = threading.Thread(target=server.serve, daemon=True)
+    t.start()
+
+    token = None
+    if hasattr(socket, "AF_UNIX"):
+        for _ in range(50):
+            if os.path.exists(sock_path):
+                break
+            time.sleep(0.05)
+        address = sock_path
+    else:
+        for _ in range(50):
+            if server.server_address is not None:
+                break
+            time.sleep(0.05)
+        address = server.server_address
+        token = server._tcp_token
+
+    try:
+        _send_request(address, {
+            "version": 1, "id": "rl1", "method": "unlock",
+            "params": {"password": "testpass1234"}
+        }, token=token)
+        _send_request(address, {
+            "version": 1, "id": "rl2", "method": "get_key",
+            "params": {"name": "lighter-api"}
+        }, token=token)
+        _send_request(address, {
+            "version": 1, "id": "rl3", "method": "get_key",
+            "params": {"name": "lighter-api"}
+        }, token=token)
+        resp = _send_request(address, {
+            "version": 1, "id": "rl4", "method": "get_key",
+            "params": {"name": "lighter-api"}
+        }, token=token)
+        assert "error" in resp
+        assert resp["error"]["code"] == 1006  # PolicyViolationError (rate limited)
+    finally:
+        server.shutdown()
+
+
 def test_tcp_token_auth(server_env):
     """TCP mode requires a valid token; requests without it are rejected."""
     config, ks_path, sock_path = server_env

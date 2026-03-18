@@ -4,6 +4,7 @@
 Uses Unix domain sockets on Linux/macOS and TCP localhost on Windows.
 """
 
+import base64
 import json
 import logging
 import os
@@ -16,6 +17,7 @@ from .config import Config
 from .errors import (
     IPCProtocolError,
     InvalidPasswordError,
+    KeyNotFoundError,
     PermissionDeniedError,
     PolicyViolationError,
     SignerError,
@@ -56,6 +58,7 @@ class SignerServer:
         self.server_address: tuple[str, int] | None = None
         self._tcp_mode = False
         self._tcp_token: str | None = None
+        self._decrypted_keys: dict[str, KeyEntry] = {}
 
     def load_keystore(self) -> None:
         self._keystore = Keystore.load(self.config.keystore_path)
@@ -98,6 +101,9 @@ class SignerServer:
                 if key.key_type == "secp256k1":
                     self._evm = EVMSigner(key.private_key)
 
+                # Store all keys by name for get_key
+                self._decrypted_keys[key.name] = key
+
             self._sm.transition_to(SignerState.UNLOCKED)
 
             if timeout > 0:
@@ -115,6 +121,11 @@ class SignerServer:
             if self._evm:
                 self._evm.zeroize()
                 self._evm = None
+            # Zeroize all decrypted keys
+            for key in self._decrypted_keys.values():
+                if key.private_key:
+                    zeroize(key.private_key)
+            self._decrypted_keys.clear()
             if self._sm.state == SignerState.UNLOCKED:
                 self._sm.transition_to(SignerState.LOCKED)
 
@@ -171,6 +182,7 @@ class SignerServer:
             "unlock": self._handle_unlock,
             "lock": self._handle_lock,
             "shutdown": self._handle_shutdown,
+            "get_key": self._handle_get_key,
             "get_address": self._handle_get_address,
             "sign_transaction": self._handle_sign_transaction,
             "sign_message": self._handle_sign_message,
@@ -218,6 +230,23 @@ class SignerServer:
                 raise UnsupportedChainError("No EVM key loaded")
             return self._evm
         raise UnsupportedChainError(f"Unsupported chain: {chain}")
+
+    def _handle_get_key(self, params: dict) -> dict:
+        self._check_rate_limit()
+        self._sm.require_unlocked()
+        name = params.get("name", "")
+        if not name:
+            raise IPCProtocolError("'name' parameter is required")
+        key = self._decrypted_keys.get(name)
+        if key is None:
+            raise KeyNotFoundError(f"Key '{name}' not found")
+        logger.info("get_key requested: name=%s", name)
+        return {
+            "name": key.name,
+            "key_type": key.key_type,
+            "key": base64.b64encode(bytes(key.private_key)).decode(),
+            "address": key.address,
+        }
 
     def _handle_get_address(self, params: dict) -> dict:
         chain = params.get("chain", "")
