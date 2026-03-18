@@ -20,6 +20,7 @@ TEST_EVM_KEY = bytes.fromhex(
 )
 TEST_EVM_ADDRESS = "0x864eC9c7662f55Af9f7637162042d9F5b2aDb1dB"
 TEST_PASSWORD = "integration_test_pw"
+TEST_OPAQUE_KEY = "my-lighter-api-secret-key-value"
 
 _HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
 
@@ -140,3 +141,100 @@ def test_ping(full_env):
     server, client = full_env
     result = client.ping()
     assert result["status"] == "ok"
+
+
+@pytest.fixture
+def full_env_with_opaque(tmp_path):
+    """Full integration environment with both EVM and opaque keys."""
+    home = tmp_path / ".crypto-signer"
+    home.mkdir()
+    sock_path = str(home / "signer.sock")
+
+    ks = Keystore(str(home / "keystore.json"))
+    ks.add_key(
+        name="test-evm",
+        key_type="secp256k1",
+        address=TEST_EVM_ADDRESS,
+        private_key=bytearray(TEST_EVM_KEY),
+        password=bytearray(TEST_PASSWORD.encode()),
+    )
+    ks.add_key(
+        name="lighter-api",
+        key_type="opaque",
+        address=None,
+        private_key=bytearray(TEST_OPAQUE_KEY.encode("utf-8")),
+        password=bytearray(TEST_PASSWORD.encode()),
+    )
+    ks.save()
+
+    config = Config(
+        home_dir=str(home),
+        socket_path=sock_path,
+        rate_limit=1000,
+    )
+
+    server = SignerServer(config)
+    server.load_keystore()
+
+    t = threading.Thread(target=server.serve, daemon=True)
+    t.start()
+
+    if _HAS_AF_UNIX:
+        for _ in range(50):
+            if os.path.exists(sock_path):
+                break
+            time.sleep(0.05)
+    else:
+        for _ in range(50):
+            if server.server_address is not None:
+                break
+            time.sleep(0.05)
+
+    client = SignerClient(socket_path=sock_path)
+
+    yield server, client
+
+    server.shutdown()
+
+
+def test_get_key_opaque_lifecycle(full_env_with_opaque):
+    """End-to-end: add opaque key, unlock, get_key, verify content."""
+    server, client = full_env_with_opaque
+
+    # Locked — get_key should fail
+    with pytest.raises(SignerLockedError):
+        client.get_key("lighter-api")
+
+    # Unlock
+    client.unlock(password=TEST_PASSWORD)
+
+    # get_key opaque
+    key = client.get_key("lighter-api")
+    assert key == TEST_OPAQUE_KEY
+
+    # get_key EVM — also works (raw binary key, use _send to avoid UTF-8 decode)
+    import base64
+    result = client._send("get_key", {"name": "test-evm"})
+    evm_key_bytes = base64.b64decode(result["key"])
+    assert len(evm_key_bytes) > 0
+
+    # Existing sign_transaction still works
+    result = client.evm.sign_transaction({
+        "to": "0x0000000000000000000000000000000000000000",
+        "value": 0,
+        "gas": 21000,
+        "gasPrice": 1000000000,
+        "nonce": 0,
+        "chainId": 1,
+    })
+    assert "signed_tx" in result
+
+    # get_key nonexistent
+    from crypto_signer.errors import KeyNotFoundError
+    with pytest.raises(KeyNotFoundError):
+        client.get_key("nonexistent")
+
+    # Lock — get_key should fail again
+    client.lock()
+    with pytest.raises(SignerLockedError):
+        client.get_key("lighter-api")

@@ -289,3 +289,47 @@ def test_get_decrypted_key_by_name(tmp_path):
 
     result2 = Keystore.find_by_name(decrypted, "nonexistent")
     assert result2 is None
+
+
+def test_change_password_with_opaque_keys(tmp_path):
+    """change-password flow works when keystore has both secp256k1 and opaque keys."""
+    ks_path = tmp_path / "keystore.json"
+    ks = Keystore(str(ks_path))
+    ks.add_key(
+        name="my-evm",
+        key_type="secp256k1",
+        address="0x1a642f0E3c3aF545E7AcBD38b07251B3990914F1",
+        private_key=bytearray(b"\x01" * 32),
+        password=bytearray(b"oldpassword12"),
+    )
+    ks.add_key(
+        name="lighter-api",
+        key_type="opaque",
+        address=None,
+        private_key=bytearray(b"lighter-secret"),
+        password=bytearray(b"oldpassword12"),
+    )
+    ks.save()
+
+    ks2 = Keystore.load(str(ks_path))
+    keys = ks2.decrypt_all(bytearray(b"oldpassword12"))
+    assert len(keys) == 2
+
+    # Re-encrypt with new password (simulates change-password flow)
+    new_ks = Keystore(str(ks_path))
+    for key in keys:
+        new_ks.add_key(
+            name=key.name,
+            key_type=key.key_type,
+            address=key.address,
+            private_key=key.private_key,
+            password=bytearray(b"newpassword12"),
+        )
+    new_ks.save()
+
+    ks3 = Keystore.load(str(ks_path))
+    keys3 = ks3.decrypt_all(bytearray(b"newpassword12"))
+    assert len(keys3) == 2
+    opaque_key = next(k for k in keys3 if k.key_type == "opaque")
+    assert bytes(opaque_key.private_key) == b"lighter-secret"
+    assert opaque_key.address is None
