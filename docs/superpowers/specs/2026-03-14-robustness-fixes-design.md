@@ -24,6 +24,7 @@
 
 **Fix**:
 - Add `_check_stale_pid(config)` helper: read PID file, `os.kill(pid, 0)` to check liveness. If alive, abort with error. If dead, unlink stale file.
+  - **Windows edge case**: `PermissionError` (subclass of `OSError`) means the process exists but is inaccessible — treat as "alive" and abort, not "dead".
 - Call `_check_stale_pid()` at start of `start` command.
 - In `stop` command, unlink PID file after successful IPC shutdown.
 
@@ -37,9 +38,9 @@
 
 | File | Function | Current | Narrowed To |
 |------|----------|---------|-------------|
-| `evm.py` | `sign_transaction` | `Exception` | `(ValueError, TypeError, KeyError)` |
-| `evm.py` | `sign_message` | `Exception` | `(ValueError, TypeError, KeyError)` |
-| `evm.py` | `sign_typed_data` | `Exception` | `(ValueError, TypeError, KeyError)` |
+| `evm.py` | `sign_transaction` | `Exception` | `(ValueError, TypeError, KeyError, AttributeError)` |
+| `evm.py` | `sign_message` | `Exception` | `(ValueError, TypeError, KeyError, AttributeError)` |
+| `evm.py` | `sign_typed_data` | `Exception` | `(ValueError, TypeError, KeyError, AttributeError)` |
 | `platform_unix.py` | `lock_memory` | `Exception` | `(OSError, ValueError, AttributeError)` |
 | `platform_unix.py` | `harden_process` (core dump) | `Exception` | `(OSError, AttributeError)` |
 | `platform_unix.py` | `harden_process` (swap) | `Exception` | `OSError` |
@@ -49,7 +50,7 @@
 **Rationale**:
 - `OSError` — system call failures (mlock, prctl, setrlimit, getsockopt)
 - `ValueError` — ctypes `from_buffer` with bad argument
-- `AttributeError` — missing ctypes symbol or module attribute on a given platform
+- `AttributeError` — missing ctypes symbol or module attribute on a given platform; also covers unexpected return types from eth-account (e.g., accessing `.raw_transaction`, `.signature`)
 - `struct.error` — peer credential data format mismatch
 - `KeyError` / `TypeError` — eth-account dict field issues
 
@@ -59,7 +60,7 @@
 
 **Problem**: `_send()` recv loop has no size cap. A misbehaving server could cause OOM.
 
-**Fix**: Add `_MAX_RESPONSE = 1048576` (1 MB, matching server `_MAX_MSG`). Break and raise `IPCProtocolError("Response too large")` when exceeded.
+**Fix**: Add `_MAX_RESPONSE = 1048576` (1 MB, matching server `_MAX_MSG`). Check `len(data)` after each `recv` and before the `b"\n"` check; raise `IPCProtocolError("Response too large")` when exceeded.
 
 ## 5. Daemon Signal Handling + PID Cleanup
 
