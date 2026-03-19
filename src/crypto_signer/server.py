@@ -147,9 +147,14 @@ class SignerServer:
         try:
             text = data.decode("utf-8").strip()
             if len(text) > self.config.max_request_size:
-                raise IPCProtocolError("Request too large")
+                err = IPCProtocolError("Request too large")
+                return (json.dumps({"id": None, "error": err.to_dict()}) + "\n").encode()
             request = json.loads(text)
         except (json.JSONDecodeError, UnicodeDecodeError):
+            err = IPCProtocolError("Invalid JSON")
+            return (json.dumps({"id": None, "error": err.to_dict()}) + "\n").encode()
+
+        if not isinstance(request, dict):
             err = IPCProtocolError("Invalid JSON")
             return (json.dumps({"id": None, "error": err.to_dict()}) + "\n").encode()
 
@@ -169,11 +174,19 @@ class SignerServer:
         method = request.get("method", "")
         params = request.get("params", {})
 
+        if not isinstance(params, dict):
+            err = IPCProtocolError("params must be an object")
+            return (json.dumps({"id": req_id, "error": err.to_dict()}) + "\n").encode()
+
         try:
             result = self._dispatch(method, params)
             return (json.dumps({"id": req_id, "result": result}) + "\n").encode()
         except SignerError as e:
             return (json.dumps({"id": req_id, "error": e.to_dict()}) + "\n").encode()
+        except Exception:
+            logger.error("Unexpected error handling %s", method, exc_info=True)
+            err = IPCProtocolError("Internal error")
+            return (json.dumps({"id": req_id, "error": err.to_dict()}) + "\n").encode()
 
     def _dispatch(self, method: str, params: dict) -> dict:
         handlers = {
@@ -191,7 +204,45 @@ class SignerServer:
         handler = handlers.get(method)
         if not handler:
             raise IPCProtocolError(f"Unknown method: {method}")
+        self._validate_params(method, params)
         return handler(params)
+
+    def _validate_params(self, method: str, params: dict) -> None:
+        """Validate params shape for known methods. Raises IPCProtocolError."""
+        if method == "unlock":
+            password = params.get("password")
+            if password is not None and not isinstance(password, str):
+                raise IPCProtocolError("unlock.password must be a string")
+            timeout = params.get("timeout")
+            if timeout is not None:
+                if not isinstance(timeout, int) or isinstance(timeout, bool):
+                    raise IPCProtocolError("unlock.timeout must be an integer")
+                if timeout < 0:
+                    raise IPCProtocolError("unlock.timeout must be >= 0")
+        elif method == "get_key":
+            name = params.get("name")
+            if name is not None and not isinstance(name, str):
+                raise IPCProtocolError("get_key.name must be a string")
+        elif method in ("sign_transaction", "sign_message", "sign_typed_data",
+                        "get_address"):
+            chain = params.get("chain")
+            if chain is not None and not isinstance(chain, str):
+                raise IPCProtocolError(f"{method}.chain must be a string")
+            if method == "sign_transaction":
+                tx = params.get("tx")
+                if tx is not None and not isinstance(tx, dict):
+                    raise IPCProtocolError("sign_transaction.tx must be an object")
+            elif method == "sign_message":
+                message = params.get("message")
+                if message is not None and not isinstance(message, str):
+                    raise IPCProtocolError("sign_message.message must be a string")
+            elif method == "sign_typed_data":
+                for field_name in ("domain", "types", "value"):
+                    val = params.get(field_name)
+                    if val is not None and not isinstance(val, dict):
+                        raise IPCProtocolError(
+                            f"sign_typed_data.{field_name} must be an object"
+                        )
 
     def _handle_ping(self, params: dict) -> dict:
         return {"status": "ok"}
@@ -285,7 +336,11 @@ class SignerServer:
             self._serve_tcp()
 
     def _serve_unix(self) -> None:
-        """Serve on a Unix domain socket."""
+        """Serve on a Unix domain socket.
+
+        Assumes no concurrent server is using the socket path. Callers
+        should verify externally (e.g. via PID check) before calling.
+        """
         sock_path = self.config.socket_path
         if os.path.exists(sock_path):
             os.unlink(sock_path)
