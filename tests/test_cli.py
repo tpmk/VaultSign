@@ -2,6 +2,8 @@
 import json
 import os
 import signal
+import subprocess
+import sys
 
 import click
 import pytest
@@ -306,3 +308,85 @@ def test_start_daemon_unix_cleanup(tmp_path):
     handler(signal.SIGTERM, None)
 
     assert not os.path.exists(pid_file)
+
+
+def test_start_daemon_windows_spawns_subprocess(tmp_path):
+    """Windows daemon should spawn a subprocess, not block on thread.join()."""
+    home = str(tmp_path / ".crypto-signer")
+    os.makedirs(home, exist_ok=True)
+    ks_path = os.path.join(home, "keystore.json")
+    with open(ks_path, "w") as f:
+        json.dump({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}, f)
+
+    from crypto_signer.cli import _start_daemon_windows
+    from crypto_signer.config import Config
+
+    config = Config(home_dir=home)
+
+    with patch("crypto_signer.cli.subprocess.Popen") as mock_popen:
+        mock_proc = mock_popen.return_value
+        mock_proc.stdout.readline.return_value = json.dumps(
+            {"status": "ready", "pid": 12345}
+        ).encode() + b"\n"
+        mock_proc.poll.return_value = None
+
+        _start_daemon_windows("test-password", config)
+
+    mock_popen.assert_called_once()
+    call_args = mock_popen.call_args
+    cmd = call_args[0][0] if call_args[0] else call_args.kwargs.get("args", [])
+    assert "_serve" in " ".join(str(c) for c in cmd)
+
+
+def test_start_daemon_windows_reports_child_error(tmp_path):
+    """If child reports error, parent should raise ClickException."""
+    home = str(tmp_path / ".crypto-signer")
+    os.makedirs(home, exist_ok=True)
+    ks_path = os.path.join(home, "keystore.json")
+    with open(ks_path, "w") as f:
+        json.dump({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}, f)
+
+    from crypto_signer.cli import _start_daemon_windows
+    from crypto_signer.config import Config
+
+    config = Config(home_dir=home)
+
+    with patch("crypto_signer.cli.subprocess.Popen") as mock_popen:
+        mock_proc = mock_popen.return_value
+        mock_proc.stdout.readline.return_value = json.dumps(
+            {"status": "error", "message": "bad password"}
+        ).encode() + b"\n"
+        mock_proc.poll.return_value = None
+
+        with pytest.raises(click.ClickException, match="bad password"):
+            _start_daemon_windows("test-password", config)
+
+
+def test_start_daemon_windows_handles_timeout(tmp_path):
+    """If child doesn't respond within timeout, parent should report error."""
+    home = str(tmp_path / ".crypto-signer")
+    os.makedirs(home, exist_ok=True)
+    ks_path = os.path.join(home, "keystore.json")
+    with open(ks_path, "w") as f:
+        json.dump({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}, f)
+
+    from crypto_signer.cli import _start_daemon_windows
+    from crypto_signer.config import Config
+
+    config = Config(home_dir=home)
+
+    with patch("crypto_signer.cli.subprocess.Popen") as mock_popen, \
+         patch("crypto_signer.cli._DAEMON_READY_TIMEOUT", 0.1):
+        mock_proc = mock_popen.return_value
+        # Simulate a hanging child: readline blocks, so the Thread.join
+        # times out and is_alive() returns True.
+        import time
+        def slow_readline():
+            time.sleep(5)
+            return b""
+        mock_proc.stdout.readline.side_effect = slow_readline
+
+        with pytest.raises(click.ClickException, match="did not respond"):
+            _start_daemon_windows("test-password", config)
+
+        mock_proc.kill.assert_called_once()

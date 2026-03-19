@@ -5,6 +5,7 @@ import logging
 import os
 import signal
 import sys
+import subprocess
 import threading
 
 import click
@@ -13,6 +14,8 @@ from .config import Config
 from .errors import WalletFormatError
 from .keystore import Keystore
 from .security.zeroize import zeroize
+
+_DAEMON_READY_TIMEOUT = 30
 
 
 def _get_config(home: str | None) -> Config:
@@ -256,6 +259,13 @@ def start(daemon, home):
 
     # Prompt for password
     password_str = click.prompt("Enter password to unlock", hide_input=True)
+
+    if daemon and sys.platform == "win32":
+        # Windows daemon: child process will unlock, not us
+        _start_daemon_windows(password_str, config)
+        del password_str
+        return
+
     password = bytearray(password_str.encode("utf-8"))
     del password_str
 
@@ -267,12 +277,8 @@ def start(daemon, home):
     click.echo("Signer unlocked and ready.")
 
     if daemon:
-        if sys.platform == "win32":
-            _start_daemon_windows(server, config)
-            return
-        else:
-            _start_daemon_unix(server, config)
-            return
+        _start_daemon_unix(server, config)
+        return
 
     # Foreground mode
     apply_hardening()
@@ -316,31 +322,69 @@ def _start_daemon_unix(server, config):
     server.serve()
 
 
-def _start_daemon_windows(server, config):
-    """Start daemon on Windows."""
-    from .security.harden import apply_hardening
-    apply_hardening()
+def _start_daemon_windows(password_str: str, config: Config):
+    """Spawn a detached child process to run the signer daemon on Windows."""
+    cmd = [sys.executable, "-m", "crypto_signer", "_serve", "--home", config.home_dir]
 
-    with open(config.pid_path, "w") as f:
-        f.write(str(os.getpid()))
+    # CREATE_NO_WINDOW=0x08000000 | DETACHED_PROCESS=0x00000008
+    creation_flags = (0x08000000 | 0x00000008) if sys.platform == "win32" else 0
 
-    click.echo(f"Daemon started (PID {os.getpid()})")
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        creationflags=creation_flags,
+    )
 
-    t = threading.Thread(target=server.serve, daemon=False)
-    t.start()
+    # Send password via stdin pipe, then close it
+    proc.stdin.write(password_str.encode("utf-8"))
+    proc.stdin.close()
+
+    # Wait for ready signal from child (with timeout).
+    # Use a thread to read stdout so we can apply a timeout on Windows
+    # where selectors don't work on pipe file descriptors.
+    line_container = [b""]
+
+    def _read_line():
+        try:
+            line_container[0] = proc.stdout.readline()
+        except Exception:
+            pass
+
+    reader = threading.Thread(target=_read_line, daemon=True)
+    reader.start()
+    reader.join(timeout=_DAEMON_READY_TIMEOUT)
+
+    if reader.is_alive():
+        proc.kill()
+        raise click.ClickException(
+            f"Daemon did not respond within {_DAEMON_READY_TIMEOUT}s"
+        )
+
+    line = line_container[0]
+
+    if not line.strip():
+        exit_code = proc.poll()
+        stderr_out = ""
+        try:
+            stderr_out = proc.stderr.read().decode(errors="replace").strip()
+        except Exception:
+            pass
+        msg = stderr_out or f"Daemon process did not start (exit code: {exit_code})"
+        raise click.ClickException(msg)
 
     try:
-        import ctypes
-        ctypes.windll.kernel32.FreeConsole()
-    except Exception:
-        pass
+        signal_data = json.loads(line.decode("utf-8").strip())
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise click.ClickException(f"Invalid ready signal from daemon: {e}")
 
-    try:
-        t.join()
-    finally:
-        server.shutdown()
-        if os.path.exists(config.pid_path):
-            os.unlink(config.pid_path)
+    if signal_data.get("status") == "ready":
+        pid = signal_data.get("pid", proc.pid)
+        click.echo(f"Daemon started (PID {pid})")
+    else:
+        msg = signal_data.get("message", "Unknown error")
+        raise click.ClickException(f"Daemon failed to start: {msg}")
 
 
 @main.command()
@@ -414,6 +458,63 @@ def lock(home):
         click.echo("Signer locked.")
     except Exception as e:
         raise click.ClickException(str(e))
+
+
+@main.command("_serve", hidden=True)
+@click.option("--home", required=True, help="Home directory")
+def _serve_cmd(home):
+    """Internal: long-running server process for Windows daemon mode."""
+    config = _get_config(home)
+
+    try:
+        from .server import SignerServer
+        from .security.harden import apply_hardening
+
+        server = SignerServer(config)
+        server.load_keystore()
+
+        # Read password from stdin pipe (binary mode for correct encoding)
+        password_bytes = sys.stdin.buffer.read()
+        password = bytearray(password_bytes)
+        del password_bytes
+
+        try:
+            server.unlock(password, config.unlock_timeout)
+        except Exception as e:
+            signal_data = {"status": "error", "message": str(e)}
+            sys.stdout.write(json.dumps(signal_data) + "\n")
+            sys.stdout.flush()
+            return
+
+        apply_hardening()
+
+        # Write PID file
+        with open(config.pid_path, "w") as f:
+            f.write(str(os.getpid()))
+
+        # Emit ready signal
+        signal_data = {"status": "ready", "pid": os.getpid()}
+        sys.stdout.write(json.dumps(signal_data) + "\n")
+        sys.stdout.flush()
+
+        # Redirect stdout/stderr to devnull to avoid BrokenPipeError
+        devnull = open(os.devnull, "w")
+        sys.stdout = devnull
+        sys.stderr = devnull
+
+        try:
+            server.serve()
+        finally:
+            server.shutdown()
+            if os.path.exists(config.pid_path):
+                os.unlink(config.pid_path)
+    except Exception as e:
+        try:
+            signal_data = {"status": "error", "message": str(e)}
+            sys.stdout.write(json.dumps(signal_data) + "\n")
+            sys.stdout.flush()
+        except Exception:
+            pass
 
 
 @main.command("change-password")
