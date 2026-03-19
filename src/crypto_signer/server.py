@@ -336,7 +336,11 @@ class SignerServer:
             self._serve_tcp()
 
     def _serve_unix(self) -> None:
-        """Serve on a Unix domain socket."""
+        """Serve on a Unix domain socket.
+
+        Assumes no concurrent server is using the socket path. Callers
+        should verify externally (e.g. via PID check) before calling.
+        """
         sock_path = self.config.socket_path
         if os.path.exists(sock_path):
             os.unlink(sock_path)

@@ -213,3 +213,33 @@ def test_get_key_returns_decoded_string():
 
     assert result == original_key
     mock_send.assert_called_once_with("get_key", {"name": "lighter-api"})
+
+
+def test_default_client_reads_discovery_files_on_windows(tmp_path):
+    """SignerClient() with no args on Windows should read signer.port/signer.token."""
+    home_dir = tmp_path / ".crypto-signer"
+    home_dir.mkdir()
+    (home_dir / "signer.port").write_text("54321")
+    (home_dir / "signer.token").write_text("test-token-abc")
+
+    with patch("crypto_signer.client._HAS_AF_UNIX", False), \
+         patch("crypto_signer.client._default_socket_path",
+               return_value=str(home_dir / "signer.sock")):
+        client = SignerClient()
+
+    assert client._host == "127.0.0.1"
+    assert client._port == 54321
+    assert client._token == "test-token-abc"
+    assert client._socket_path is None
+
+
+def test_default_client_raises_when_no_discovery_files(tmp_path):
+    """SignerClient() on Windows should fail-fast if discovery files don't exist."""
+    home_dir = tmp_path / ".crypto-signer"
+    home_dir.mkdir()
+
+    with patch("crypto_signer.client._HAS_AF_UNIX", False), \
+         patch("crypto_signer.client._default_socket_path",
+               return_value=str(home_dir / "signer.sock")):
+        with pytest.raises(SignerConnectionError, match="port file"):
+            SignerClient()

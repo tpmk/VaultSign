@@ -63,12 +63,12 @@ class SignerClient:
             # Windows: derive TCP connection info from port/token files
             self._resolve_tcp_from_socket_path(socket_path)
         elif not socket_path and not host:
-            # Default to Unix socket if AF_UNIX is available
+            # Default discovery: Unix socket or Windows TCP discovery files
             if _HAS_AF_UNIX:
                 self._socket_path = _default_socket_path()
             else:
-                self._host = "127.0.0.1"
-                self._port = 9473  # default TCP port
+                # Windows: read port/token from default home's discovery files
+                self._resolve_tcp_from_socket_path(_default_socket_path())
 
         self.evm = _ChainClient(self._send, "evm")
 
