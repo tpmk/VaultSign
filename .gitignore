@@ -5,6 +5,7 @@ dist/
 build/
 .venv/
 .worktrees/
+.claude/
 *.sock
 *.pid
 .env
