@@ -223,25 +223,26 @@ class SignerServer:
             name = params.get("name")
             if name is not None and not isinstance(name, str):
                 raise IPCProtocolError("get_key.name must be a string")
-        elif method == "sign_transaction":
-            tx = params.get("tx")
-            if tx is not None and not isinstance(tx, dict):
-                raise IPCProtocolError("sign_transaction.tx must be an object")
-        elif method == "sign_message":
-            message = params.get("message")
-            if message is not None and not isinstance(message, str):
-                raise IPCProtocolError("sign_message.message must be a string")
-        elif method == "sign_typed_data":
-            for field_name in ("domain", "types", "value"):
-                val = params.get(field_name)
-                if val is not None and not isinstance(val, dict):
-                    raise IPCProtocolError(
-                        f"sign_typed_data.{field_name} must be an object"
-                    )
-        elif method == "get_address":
+        elif method in ("sign_transaction", "sign_message", "sign_typed_data",
+                        "get_address"):
             chain = params.get("chain")
             if chain is not None and not isinstance(chain, str):
-                raise IPCProtocolError("get_address.chain must be a string")
+                raise IPCProtocolError(f"{method}.chain must be a string")
+            if method == "sign_transaction":
+                tx = params.get("tx")
+                if tx is not None and not isinstance(tx, dict):
+                    raise IPCProtocolError("sign_transaction.tx must be an object")
+            elif method == "sign_message":
+                message = params.get("message")
+                if message is not None and not isinstance(message, str):
+                    raise IPCProtocolError("sign_message.message must be a string")
+            elif method == "sign_typed_data":
+                for field_name in ("domain", "types", "value"):
+                    val = params.get(field_name)
+                    if val is not None and not isinstance(val, dict):
+                        raise IPCProtocolError(
+                            f"sign_typed_data.{field_name} must be an object"
+                        )
 
     def _handle_ping(self, params: dict) -> dict:
         return {"status": "ok"}
