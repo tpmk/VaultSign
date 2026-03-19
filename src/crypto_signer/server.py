@@ -204,7 +204,44 @@ class SignerServer:
         handler = handlers.get(method)
         if not handler:
             raise IPCProtocolError(f"Unknown method: {method}")
+        self._validate_params(method, params)
         return handler(params)
+
+    def _validate_params(self, method: str, params: dict) -> None:
+        """Validate params shape for known methods. Raises IPCProtocolError."""
+        if method == "unlock":
+            password = params.get("password")
+            if password is not None and not isinstance(password, str):
+                raise IPCProtocolError("unlock.password must be a string")
+            timeout = params.get("timeout")
+            if timeout is not None:
+                if not isinstance(timeout, int) or isinstance(timeout, bool):
+                    raise IPCProtocolError("unlock.timeout must be an integer")
+                if timeout < 0:
+                    raise IPCProtocolError("unlock.timeout must be >= 0")
+        elif method == "get_key":
+            name = params.get("name")
+            if name is not None and not isinstance(name, str):
+                raise IPCProtocolError("get_key.name must be a string")
+        elif method == "sign_transaction":
+            tx = params.get("tx")
+            if tx is not None and not isinstance(tx, dict):
+                raise IPCProtocolError("sign_transaction.tx must be an object")
+        elif method == "sign_message":
+            message = params.get("message")
+            if message is not None and not isinstance(message, str):
+                raise IPCProtocolError("sign_message.message must be a string")
+        elif method == "sign_typed_data":
+            for field_name in ("domain", "types", "value"):
+                val = params.get(field_name)
+                if val is not None and not isinstance(val, dict):
+                    raise IPCProtocolError(
+                        f"sign_typed_data.{field_name} must be an object"
+                    )
+        elif method == "get_address":
+            chain = params.get("chain")
+            if chain is not None and not isinstance(chain, str):
+                raise IPCProtocolError("get_address.chain must be a string")
 
     def _handle_ping(self, params: dict) -> dict:
         return {"status": "ok"}

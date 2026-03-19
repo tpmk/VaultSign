@@ -490,6 +490,78 @@ def test_non_dict_json_returns_protocol_error(running_server):
     assert resp["error"]["code"] == 1008
 
 
+def test_unlock_password_must_be_string(running_server):
+    server, address, token = running_server
+    resp = _send_request(address, {
+        "version": 1, "id": "uv1", "method": "unlock",
+        "params": {"password": 12345, "timeout": 0}
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+
+
+def test_unlock_timeout_must_be_nonneg_integer(running_server):
+    server, address, token = running_server
+    resp = _send_request(address, {
+        "version": 1, "id": "uv2", "method": "unlock",
+        "params": {"password": "testpass1234", "timeout": "five"}
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+
+
+def test_unlock_timeout_negative_rejected(running_server):
+    server, address, token = running_server
+    resp = _send_request(address, {
+        "version": 1, "id": "uv3", "method": "unlock",
+        "params": {"password": "testpass1234", "timeout": -1}
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+
+
+def test_sign_transaction_tx_must_be_object(running_server):
+    server, address, token = running_server
+    _send_request(address, {
+        "version": 1, "id": "st0", "method": "unlock",
+        "params": {"password": "testpass1234"}
+    }, token=token)
+    resp = _send_request(address, {
+        "version": 1, "id": "st1", "method": "sign_transaction",
+        "params": {"chain": "evm", "tx": "not-an-object"}
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+
+
+def test_sign_message_message_must_be_string(running_server):
+    server, address, token = running_server
+    _send_request(address, {
+        "version": 1, "id": "sm0", "method": "unlock",
+        "params": {"password": "testpass1234"}
+    }, token=token)
+    resp = _send_request(address, {
+        "version": 1, "id": "sm1", "method": "sign_message",
+        "params": {"chain": "evm", "message": 12345}
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+
+
+def test_get_key_name_must_be_string(running_server):
+    server, address, token = running_server
+    _send_request(address, {
+        "version": 1, "id": "gkv0", "method": "unlock",
+        "params": {"password": "testpass1234"}
+    }, token=token)
+    resp = _send_request(address, {
+        "version": 1, "id": "gkv1", "method": "get_key",
+        "params": {"name": 123}
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+
+
 def test_tcp_token_auth(server_env):
     """TCP mode requires a valid token; requests without it are rejected."""
     config, ks_path, sock_path = server_env
