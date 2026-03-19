@@ -13,6 +13,8 @@ PLATFORM = "windows"
 def lock_memory(buf: bytearray) -> bool:
     try:
         kernel32 = ctypes.windll.kernel32
+        kernel32.VirtualLock.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+        kernel32.VirtualLock.restype = ctypes.c_int
         addr = (ctypes.c_char * len(buf)).from_buffer(buf)
         result = kernel32.VirtualLock(ctypes.addressof(addr), len(buf))
         if result == 0:

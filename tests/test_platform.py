@@ -86,3 +86,19 @@ def test_set_file_owner_only_warns_missing_username(tmp_path, caplog):
         set_file_owner_only(str(f))
 
     assert "USERNAME" in caplog.text
+
+
+def test_lock_memory_sets_virtuallock_argtypes():
+    """VirtualLock must have explicit ctypes argtypes for 64-bit correctness."""
+    if sys.platform != "win32":
+        pytest.skip("Windows-only test")
+
+    import ctypes
+    from crypto_signer.security.platform_win import lock_memory
+
+    buf = bytearray(64)
+    lock_memory(buf)
+
+    kernel32 = ctypes.windll.kernel32
+    assert kernel32.VirtualLock.argtypes == [ctypes.c_void_p, ctypes.c_size_t]
+    assert kernel32.VirtualLock.restype == ctypes.c_int
