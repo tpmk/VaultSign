@@ -58,6 +58,9 @@ class Config:
                 data = tomllib.load(f)
         except (FileNotFoundError, OSError):
             return cls()
+        # Set home_dir to config file's parent so __post_init__ derives
+        # socket_path, keystore_path, etc. relative to it.
+        kwargs["home_dir"] = str(Path(path).parent)
         signer = data.get("signer", {})
         security = data.get("security", {})
         for key in ("socket_path", "unlock_timeout", "disable_core_dump", "try_mlock"):
