@@ -59,8 +59,10 @@ However, `SignerClient()` with no arguments currently defaults to `127.0.0.1:947
    - connect directly to that socket path
 4. On Windows:
    - treat the socket path as a locator for the home directory
-   - read `signer.port` and `signer.token` from the same directory
+   - read `signer.port` and `signer.token` from the same directory via the existing `_resolve_tcp_from_socket_path()` method
    - connect to `127.0.0.1:<discovered port>`
+
+If the server has not started yet (discovery files do not exist), `SignerClient()` raises `SignerConnectionError`. This is the intended fail-fast behavior.
 
 ### Explicit Overrides
 
@@ -91,16 +93,19 @@ Adding a redundant PID check inside `_serve_unix()` would duplicate logic and co
 Introduce an internal CLI entrypoint for the long-running server process via a **hidden click subcommand** `_serve` (`hidden=True`). The parent spawns it with `sys.executable -m crypto_signer _serve`. The user-visible command remains `crypto-signer start -d`, but the implementation changes:
 
 1. The parent CLI process validates config, keystore availability, and **prompts for the password**.
-2. The parent spawns a child Python process (with `CREATE_NO_WINDOW` on Windows) that runs an internal server command. The password is passed to the child via a **stdin pipe** and the pipe is closed immediately after the write.
+2. The parent spawns a child Python process (with `CREATE_NO_WINDOW | DETACHED_PROCESS` flags on Windows) that runs an internal server command. The password is UTF-8 encoded and passed to the child via a **stdin pipe**; the pipe is closed immediately after the write.
 3. The child process:
    - reads the password from stdin
    - unlocks the keystore
    - starts the signer server
    - writes PID / discovery files
    - writes a JSON ready message to **stdout** (see Ready Signaling below)
+   - after emitting the ready signal, redirects stdout/stderr to `NUL` (or a log file) to avoid `BrokenPipeError` once the parent disconnects
 4. The parent reads the child's stdout, waits for the ready/failure signal, reports the result, and exits.
 
-**Why parent prompts, child receives via pipe**: The child is spawned detached (`CREATE_NO_WINDOW` / `DETACHED_PROCESS`), so it has no console and cannot prompt interactively. Passing the password over a stdin pipe keeps the UX unchanged (user types the password before the process detaches) and avoids writing secrets to disk or environment variables.
+**Why parent prompts, child receives via pipe**: The child is spawned detached (`CREATE_NO_WINDOW | DETACHED_PROCESS`), so it has no console and cannot prompt interactively. Passing the password over a stdin pipe keeps the UX unchanged (user types the password before the process detaches) and avoids writing secrets to disk or environment variables.
+
+**`_serve` subcommand**: Registered as `@main.command("_serve", hidden=True)`. The underscore prefix and `hidden=True` keep it out of `--help` output. It is an internal implementation detail and not a stable API — callers should use `crypto-signer start -d`.
 
 ### Ready Signaling
 
@@ -109,7 +114,7 @@ The parent communicates with the child via its **stdout pipe**. The child writes
 - Success: `{"status": "ready", "pid": <int>}`
 - Failure: `{"status": "error", "message": "<reason>"}`
 
-The parent reads this single line (with a timeout, e.g. 30s), then:
+The parent reads this single line (with a 30-second timeout), then:
 
 - On `"ready"`: prints success message and exits 0.
 - On `"error"` or timeout or child exit: prints the error and exits 1.
@@ -130,7 +135,9 @@ The server only serializes `SignerError` subclasses. Unexpected type errors from
 
 Add a lightweight request validation layer before dispatching to handlers.
 
-Each method will validate its expected `params` shape and primitive types. Examples:
+Before dispatching, `_handle_request` validates that `params` is a dict. If `params` is a string, array, null, or any other non-dict type, the request is rejected with `IPCProtocolError("params must be an object")` before reaching any handler.
+
+Each method then validates its expected `params` fields and primitive types. Examples:
 
 - `status`: `params` must be an object
 - `unlock.password`: required string
@@ -151,7 +158,9 @@ Unknown fields in `params` are **silently ignored**. Validation only checks know
 Even with per-method validation, unexpected exceptions (e.g. a future code path raising `TypeError` or `KeyError`) must not escape the protocol boundary. The `_handle_request` method's `_dispatch` call site currently only catches `SignerError`. Add a second `except Exception` clause that:
 
 1. Logs the full traceback at `ERROR` level (for operator diagnostics).
-2. Returns a structured `IPCProtocolError("Internal error")` response to the client.
+2. Returns a structured `IPCProtocolError("Internal error")` response to the client. The message is deliberately generic — exception details must not leak to clients for security reasons.
+
+The existing catch-all in `_accept_loop` stays unchanged; it handles transport-level errors (e.g. `sendall` failure), while the new catch-all in `_handle_request` handles application-level errors. They serve different purposes.
 
 This guarantees every request produces a JSON response, regardless of what goes wrong inside a handler.
 
@@ -200,10 +209,10 @@ This preserves the current security model while making it function correctly on 
 `Config.from_file(path)` will:
 
 1. parse the file
-2. set `home_dir` to `Path(path).parent`
+2. inject `home_dir = str(Path(path).parent)` into `kwargs` before calling `cls(**kwargs)` — this ensures `home_dir` is set before `__post_init__` derives dependent paths (`keystore_path`, `socket_path`, etc.)
 3. derive default runtime paths relative to that directory unless explicitly overridden in the file
 
-`Config.load(home_dir=...)` remains the override-oriented helper, but its behavior becomes consistent with `from_file()`.
+`Config.load(home_dir=...)` continues to override `home_dir` after calling `from_file()`, as it does today. Explicit `home_dir` always wins.
 
 ## 10. Testing Strategy
 
@@ -215,6 +224,8 @@ All fixes will be implemented with test-first coverage.
   - default client discovery on Windows-style TCP discovery files
 - `tests/test_cli.py`
   - Windows daemon path launches an independent subprocess flow instead of blocking thread join semantics
+  - ready-signal protocol: parent correctly parses success and error JSON from child stdout
+  - timeout path: parent reports error when child does not emit ready signal within 30s
 - `tests/test_server.py`
   - malformed `unlock` params return structured `IPCProtocolError`
   - malformed request param container types are rejected cleanly
@@ -245,6 +256,15 @@ Mitigation:
 - only reject clearly malformed input
 - keep valid request payloads unchanged
 - return explicit protocol errors instead of ambiguous failures
+
+### Risk: child process crashes after emitting ready signal
+
+The parent exits successfully, but the daemon dies shortly after. The user believes the daemon is running.
+
+Mitigation:
+
+- `_check_stale_pid()` already detects this case on subsequent `start` or `status` commands by checking the PID file against running processes
+- this is the same failure mode that exists for the Unix fork path and is handled identically
 
 ### Risk: platform-specific tests are brittle
 
