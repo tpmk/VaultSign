@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-This spec fixes a set of correctness and platform reliability issues in `crypto-signer` without changing the primary user-facing command set.
+This spec fixes a set of correctness and platform reliability issues in `vaultsign` without changing the primary user-facing command set.
 
 The work targets five concrete defects:
 
@@ -14,7 +14,7 @@ The work targets five concrete defects:
 
 ## 2. Goals
 
-1. Make `crypto-signer start -d` behave as a true background start on Windows.
+1. Make `vaultsign start -d` behave as a true background start on Windows.
 2. Make `SignerClient()` work with default settings on both Unix and Windows.
 3. Guarantee structured IPC error responses for malformed requests instead of silent disconnects.
 4. Restore functional best-effort memory locking on Windows.
@@ -78,7 +78,7 @@ At the CLI layer, `_check_stale_pid()` already prevents starting a second daemon
 
 Adding a redundant PID check inside `_serve_unix()` would duplicate logic and couple the server to CLI-layer concerns. Instead, this spec takes the following position:
 
-- **CLI path** (`crypto-signer start`): protected by `_check_stale_pid()` — no change needed.
+- **CLI path** (`vaultsign start`): protected by `_check_stale_pid()` — no change needed.
 - **Direct `SignerServer.serve()` calls** (programmatic usage): callers are responsible for lifecycle management. This is consistent with the existing design where `SignerServer` is a building block, not a standalone daemon manager.
 - **Documentation**: add a docstring note to `_serve_unix()` stating that it assumes no concurrent server is using the socket, and that callers should verify this externally (e.g. via PID check).
 
@@ -90,7 +90,7 @@ Adding a redundant PID check inside `_serve_unix()` would duplicate logic and co
 
 ### Proposed Behavior
 
-Introduce an internal CLI entrypoint for the long-running server process via a **hidden click subcommand** `_serve` (`hidden=True`). The parent spawns it with `sys.executable -m crypto_signer _serve`. The user-visible command remains `crypto-signer start -d`, but the implementation changes:
+Introduce an internal CLI entrypoint for the long-running server process via a **hidden click subcommand** `_serve` (`hidden=True`). The parent spawns it with `sys.executable -m vaultsign _serve`. The user-visible command remains `vaultsign start -d`, but the implementation changes:
 
 1. The parent CLI process validates config, keystore availability, and **prompts for the password**.
 2. The parent spawns a child Python process (with `CREATE_NO_WINDOW | DETACHED_PROCESS` flags on Windows) that runs an internal server command. The password is UTF-8 encoded and passed to the child via a **stdin pipe**; the pipe is closed immediately after the write.
@@ -105,7 +105,7 @@ Introduce an internal CLI entrypoint for the long-running server process via a *
 
 **Why parent prompts, child receives via pipe**: The child is spawned detached (`CREATE_NO_WINDOW | DETACHED_PROCESS`), so it has no console and cannot prompt interactively. Passing the password over a stdin pipe keeps the UX unchanged (user types the password before the process detaches) and avoids writing secrets to disk or environment variables.
 
-**`_serve` subcommand**: Registered as `@main.command("_serve", hidden=True)`. The underscore prefix and `hidden=True` keep it out of `--help` output. It is an internal implementation detail and not a stable API — callers should use `crypto-signer start -d`.
+**`_serve` subcommand**: Registered as `@main.command("_serve", hidden=True)`. The underscore prefix and `hidden=True` keep it out of `--help` output. It is an internal implementation detail and not a stable API — callers should use `vaultsign start -d`.
 
 ### Ready Signaling
 
@@ -277,11 +277,11 @@ Mitigation:
 
 ### Files to Modify
 
-- `src/crypto_signer/client.py`
-- `src/crypto_signer/cli.py`
-- `src/crypto_signer/server.py`
-- `src/crypto_signer/security/platform_win.py`
-- `src/crypto_signer/config.py`
+- `src/vaultsign/client.py`
+- `src/vaultsign/cli.py`
+- `src/vaultsign/server.py`
+- `src/vaultsign/security/platform_win.py`
+- `src/vaultsign/config.py`
 - `tests/test_client.py`
 - `tests/test_cli.py`
 - `tests/test_server.py`

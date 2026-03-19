@@ -1,4 +1,4 @@
-from crypto_signer.config import Config
+from vaultsign.config import Config
 
 
 def test_default_config():
@@ -32,7 +32,7 @@ def test_config_from_toml(tmp_path):
 
 def test_config_home_dir():
     c = Config()
-    assert c.home_dir.endswith(".crypto-signer")
+    assert c.home_dir.endswith(".vaultsign")
 
 
 def test_config_missing_file_uses_defaults():

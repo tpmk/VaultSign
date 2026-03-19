@@ -1,4 +1,4 @@
-"""crypto-signer: Encrypted wallet + memory-resident signing service."""
+"""VaultSign: encrypted key vault and memory-resident signing service."""
 
 from .client import SignerClient
 from .errors import (

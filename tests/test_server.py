@@ -8,9 +8,9 @@ import time
 
 import pytest
 
-from crypto_signer.server import SignerServer
-from crypto_signer.config import Config
-from crypto_signer.keystore import Keystore
+from vaultsign.server import SignerServer
+from vaultsign.config import Config
+from vaultsign.keystore import Keystore
 
 
 def _send_request(address, request: dict, token: str | None = None) -> dict:
@@ -43,7 +43,7 @@ def _send_request(address, request: dict, token: str | None = None) -> dict:
 @pytest.fixture
 def server_env(tmp_path):
     """Set up a keystore + config + server."""
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     ks_path = home / "keystore.json"
     sock_path = str(home / "signer.sock")
@@ -195,7 +195,7 @@ def test_invalid_method(running_server):
 @pytest.fixture
 def server_env_with_opaque(tmp_path):
     """Set up a keystore + config + server with both an EVM key and an opaque key."""
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     ks_path = home / "keystore.json"
     sock_path = str(home / "signer.sock")
@@ -333,7 +333,7 @@ def test_get_key_missing_name(running_server_with_opaque):
 
 
 def test_get_key_rate_limited(tmp_path):
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     ks_path = home / "keystore.json"
     sock_path = str(home / "signer.sock")
@@ -583,7 +583,7 @@ def test_tcp_token_auth(server_env):
     server.load_keystore()
 
     # Force TCP mode
-    import crypto_signer.server as server_mod
+    import vaultsign.server as server_mod
     original = server_mod._HAS_AF_UNIX
     server_mod._HAS_AF_UNIX = False
     try:

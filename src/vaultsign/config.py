@@ -1,4 +1,4 @@
-"""Configuration loading for crypto-signer."""
+"""Configuration loading for VaultSign."""
 
 import sys
 from dataclasses import dataclass, field
@@ -11,7 +11,7 @@ else:
 
 
 def _default_home() -> str:
-    return str(Path.home() / ".crypto-signer")
+    return str(Path.home() / ".vaultsign")
 
 
 @dataclass

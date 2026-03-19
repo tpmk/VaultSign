@@ -1,5 +1,8 @@
 # Security
 
+VaultSign is designed to reduce the chance that application code, shell history,
+config files, or repositories end up holding usable plaintext private keys.
+
 ## Threat Model
 
 This package protects against:

@@ -1,4 +1,4 @@
-# src/crypto_signer/state.py
+# src/vaultsign/state.py
 """Signer state machine.
 
 States: INIT -> LOCKED -> UNLOCKED -> STOPPED

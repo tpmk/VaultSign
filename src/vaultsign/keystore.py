@@ -1,4 +1,4 @@
-# src/crypto_signer/keystore.py
+# src/vaultsign/keystore.py
 """Encrypted keystore management.
 
 Handles reading, writing, encrypting, and decrypting keystore.json.

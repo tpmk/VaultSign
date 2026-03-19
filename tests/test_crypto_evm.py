@@ -2,8 +2,8 @@
 import pytest
 from unittest.mock import patch
 
-from crypto_signer.crypto.evm import EVMSigner
-from crypto_signer.errors import SigningError
+from vaultsign.crypto.evm import EVMSigner
+from vaultsign.errors import SigningError
 
 
 # Well-known test private key (DO NOT use in production)

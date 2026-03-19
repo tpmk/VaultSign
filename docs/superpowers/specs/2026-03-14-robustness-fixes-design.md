@@ -5,7 +5,7 @@
 
 ## 1. Windows ACL Fallback Validation
 
-**File**: `src/crypto_signer/security/platform_win.py`
+**File**: `src/vaultsign/security/platform_win.py`
 
 **Problem**: `icacls` fallback in `set_file_owner_only()` uses `check=False` and silently ignores failures. If both `win32api` and `icacls` fail, sensitive files retain default ACL.
 
@@ -15,7 +15,7 @@
 
 ## 2. PID File Management
 
-**File**: `src/crypto_signer/cli.py`
+**File**: `src/vaultsign/cli.py`
 
 **Problem**:
 - `start` does not check for an existing running process — overwrites PID file.
@@ -30,7 +30,7 @@
 
 ## 3. Narrow Exception Handling
 
-**Files**: `src/crypto_signer/crypto/evm.py`, `src/crypto_signer/security/platform_unix.py`, `src/crypto_signer/security/platform_win.py`
+**Files**: `src/vaultsign/crypto/evm.py`, `src/vaultsign/security/platform_unix.py`, `src/vaultsign/security/platform_win.py`
 
 **Problem**: Broad `except Exception` catches mask programming errors and make debugging harder.
 
@@ -56,7 +56,7 @@
 
 ## 4. Client Response Size Limit
 
-**File**: `src/crypto_signer/client.py`
+**File**: `src/vaultsign/client.py`
 
 **Problem**: `_send()` recv loop has no size cap. A misbehaving server could cause OOM.
 
@@ -64,7 +64,7 @@
 
 ## 5. Daemon Signal Handling + PID Cleanup
 
-**File**: `src/crypto_signer/cli.py`
+**File**: `src/vaultsign/cli.py`
 
 **Problem**:
 - Unix fork child has no signal handler — SIGTERM kills without cleanup.

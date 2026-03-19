@@ -1,4 +1,4 @@
-from crypto_signer.errors import (
+from vaultsign.errors import (
     SignerError,
     SignerConnectionError,
     SignerLockedError,
@@ -63,7 +63,7 @@ def test_error_repr_does_not_leak_secrets():
 
 
 def test_key_not_found_error_code():
-    from crypto_signer.errors import KeyNotFoundError, ErrorCode
+    from vaultsign.errors import KeyNotFoundError, ErrorCode
     err = KeyNotFoundError("key 'foo' not found")
     assert err.code == ErrorCode.KEY_NOT_FOUND
     assert err.code.value == 1010
@@ -73,7 +73,7 @@ def test_key_not_found_error_code():
 
 
 def test_key_not_found_error_roundtrip():
-    from crypto_signer.errors import KeyNotFoundError, SignerError
+    from vaultsign.errors import KeyNotFoundError, SignerError
     err = KeyNotFoundError("not found")
     d = err.to_dict()
     restored = SignerError.from_dict(d)

@@ -1,4 +1,4 @@
-from crypto_signer.security.zeroize import zeroize, SecureByteArray
+from vaultsign.security.zeroize import zeroize, SecureByteArray
 
 
 def test_zeroize_bytearray():

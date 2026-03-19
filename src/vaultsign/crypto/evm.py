@@ -1,4 +1,4 @@
-# src/crypto_signer/crypto/evm.py
+# src/vaultsign/crypto/evm.py
 """EVM signing engine using eth-account."""
 
 from eth_account import Account

@@ -17,7 +17,7 @@
 ### Task 1: Windows ACL Fallback Validation
 
 **Files:**
-- Modify: `src/crypto_signer/security/platform_win.py:45-54`
+- Modify: `src/vaultsign/security/platform_win.py:45-54`
 - Test: `tests/test_platform.py`
 
 - [ ] **Step 1: Write failing tests for icacls warning and missing USERNAME**
@@ -41,7 +41,7 @@ def test_set_file_owner_only_icacls_warns_on_failure(tmp_path, caplog):
     if sys.platform != "win32":
         pytest.skip("Windows-only test")
 
-    from crypto_signer.security.platform_win import set_file_owner_only
+    from vaultsign.security.platform_win import set_file_owner_only
 
     f = tmp_path / "test.txt"
     f.write_text("data")
@@ -49,7 +49,7 @@ def test_set_file_owner_only_icacls_warns_on_failure(tmp_path, caplog):
     # patch.dict sets sys.modules entries to None, causing ImportError on
     # `import win32api` inside the function body — no reload needed.
     with patch.dict("sys.modules", {"win32api": None, "win32security": None, "ntsecuritycon": None}), \
-         patch("crypto_signer.security.platform_win.subprocess.run") as mock_run, \
+         patch("vaultsign.security.platform_win.subprocess.run") as mock_run, \
          caplog.at_level(logging.WARNING):
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=1, stderr=b"access denied",
@@ -64,7 +64,7 @@ def test_set_file_owner_only_warns_missing_username(tmp_path, caplog):
     if sys.platform != "win32":
         pytest.skip("Windows-only test")
 
-    from crypto_signer.security.platform_win import set_file_owner_only
+    from vaultsign.security.platform_win import set_file_owner_only
 
     f = tmp_path / "test.txt"
     f.write_text("data")
@@ -84,7 +84,7 @@ Expected: FAIL (no warnings logged currently, or skipped on non-Windows)
 
 - [ ] **Step 3: Implement the fix**
 
-In `src/crypto_signer/security/platform_win.py`, replace the `except ImportError` block in `set_file_owner_only`:
+In `src/vaultsign/security/platform_win.py`, replace the `except ImportError` block in `set_file_owner_only`:
 
 ```python
     except ImportError:
@@ -116,7 +116,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/security/platform_win.py tests/test_platform.py
+git add src/vaultsign/security/platform_win.py tests/test_platform.py
 git commit -m "fix: validate icacls fallback and warn on failure"
 ```
 
@@ -125,9 +125,9 @@ git commit -m "fix: validate icacls fallback and warn on failure"
 ### Task 2: Narrow Exception Handling
 
 **Files:**
-- Modify: `src/crypto_signer/crypto/evm.py:30,40,54`
-- Modify: `src/crypto_signer/security/platform_unix.py:28,49,58,77`
-- Modify: `src/crypto_signer/security/platform_win.py:22`
+- Modify: `src/vaultsign/crypto/evm.py:30,40,54`
+- Modify: `src/vaultsign/security/platform_unix.py:28,49,58,77`
+- Modify: `src/vaultsign/security/platform_win.py:22`
 - Test: `tests/test_crypto_evm.py`, `tests/test_platform.py`
 
 - [ ] **Step 1: Write test that verifies unexpected exceptions propagate from evm.py**
@@ -136,7 +136,7 @@ In `tests/test_crypto_evm.py`, add:
 
 ```python
 from unittest.mock import patch
-from crypto_signer.errors import SigningError
+from vaultsign.errors import SigningError
 
 
 def test_sign_transaction_propagates_unexpected_error(signer):
@@ -160,7 +160,7 @@ Expected: FAIL (currently catches all exceptions, wraps RuntimeError in SigningE
 
 - [ ] **Step 3: Narrow evm.py exceptions**
 
-In `src/crypto_signer/crypto/evm.py`, change all three methods:
+In `src/vaultsign/crypto/evm.py`, change all three methods:
 
 Line 30: `except Exception as e:` → `except (ValueError, TypeError, KeyError, AttributeError) as e:`
 Line 40 (after edit, ~41): same change
@@ -173,7 +173,7 @@ Expected: All PASS
 
 - [ ] **Step 5: Narrow platform_unix.py exceptions**
 
-In `src/crypto_signer/security/platform_unix.py`:
+In `src/vaultsign/security/platform_unix.py`:
 
 Line 28: `except Exception as e:` → `except (OSError, ValueError, AttributeError) as e:`
 Line 49: `except Exception as e:` → `except (OSError, AttributeError) as e:`
@@ -182,7 +182,7 @@ Line 77: `except Exception:` → `except (OSError, struct.error):`
 
 - [ ] **Step 6: Narrow platform_win.py lock_memory exception**
 
-In `src/crypto_signer/security/platform_win.py`:
+In `src/vaultsign/security/platform_win.py`:
 
 Line 22: `except Exception as e:` → `except (OSError, ValueError, AttributeError) as e:`
 
@@ -194,7 +194,7 @@ Expected: All PASS
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/crypto_signer/crypto/evm.py src/crypto_signer/security/platform_unix.py src/crypto_signer/security/platform_win.py tests/test_crypto_evm.py
+git add src/vaultsign/crypto/evm.py src/vaultsign/security/platform_unix.py src/vaultsign/security/platform_win.py tests/test_crypto_evm.py
 git commit -m "fix: narrow exception handling for better debugging"
 ```
 
@@ -203,7 +203,7 @@ git commit -m "fix: narrow exception handling for better debugging"
 ### Task 3: Client Response Size Limit
 
 **Files:**
-- Modify: `src/crypto_signer/client.py:125-132`
+- Modify: `src/vaultsign/client.py:125-132`
 - Test: `tests/test_client.py`
 
 - [ ] **Step 1: Write failing test for oversized response**
@@ -211,7 +211,7 @@ git commit -m "fix: narrow exception handling for better debugging"
 In `tests/test_client.py`, add at the top of the file with the other imports:
 
 ```python
-from crypto_signer.client import _MAX_RESPONSE
+from vaultsign.client import _MAX_RESPONSE
 ```
 
 Then add test:
@@ -234,7 +234,7 @@ Expected: FAIL (_MAX_RESPONSE not defined, no size check)
 
 - [ ] **Step 3: Implement size limit**
 
-In `src/crypto_signer/client.py`, add after line 10 (`_HAS_AF_UNIX = ...`):
+In `src/vaultsign/client.py`, add after line 10 (`_HAS_AF_UNIX = ...`):
 
 ```python
 _MAX_RESPONSE = 1048576  # 1 MB, matches server _MAX_MSG
@@ -263,7 +263,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/client.py tests/test_client.py
+git add src/vaultsign/client.py tests/test_client.py
 git commit -m "fix: add response size limit to client recv loop"
 ```
 
@@ -272,7 +272,7 @@ git commit -m "fix: add response size limit to client recv loop"
 ### Task 4: PID File Management
 
 **Files:**
-- Modify: `src/crypto_signer/cli.py:197-298`
+- Modify: `src/vaultsign/cli.py:197-298`
 - Test: `tests/test_cli.py`
 
 - [ ] **Step 1: Write test for stale PID detection**
@@ -289,12 +289,12 @@ from unittest.mock import patch
 Then add these tests at the end of the file:
 
 ```python
-from crypto_signer.cli import _check_stale_pid
+from vaultsign.cli import _check_stale_pid
 
 
 def test_check_stale_pid_cleans_dead_process(tmp_path):
     """Stale PID file (dead process) should be cleaned up."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     pid_file = os.path.join(home, "signer.pid")
 
@@ -302,10 +302,10 @@ def test_check_stale_pid_cleans_dead_process(tmp_path):
     with open(pid_file, "w") as f:
         f.write("99999999")
 
-    from crypto_signer.config import Config
+    from vaultsign.config import Config
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.os.kill", side_effect=OSError("No such process")):
+    with patch("vaultsign.cli.os.kill", side_effect=OSError("No such process")):
         _check_stale_pid(config)
 
     assert not os.path.exists(pid_file)
@@ -313,34 +313,34 @@ def test_check_stale_pid_cleans_dead_process(tmp_path):
 
 def test_check_stale_pid_aborts_if_alive(tmp_path):
     """If PID is alive, should raise ClickException."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     pid_file = os.path.join(home, "signer.pid")
 
     with open(pid_file, "w") as f:
         f.write("12345")
 
-    from crypto_signer.config import Config
+    from vaultsign.config import Config
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.os.kill", return_value=None):  # process exists
+    with patch("vaultsign.cli.os.kill", return_value=None):  # process exists
         with pytest.raises(click.ClickException, match="already running"):
             _check_stale_pid(config)
 
 
 def test_check_stale_pid_treats_permission_error_as_alive(tmp_path):
     """PermissionError means process exists but inaccessible — treat as alive."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     pid_file = os.path.join(home, "signer.pid")
 
     with open(pid_file, "w") as f:
         f.write("12345")
 
-    from crypto_signer.config import Config
+    from vaultsign.config import Config
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.os.kill", side_effect=PermissionError("Access denied")):
+    with patch("vaultsign.cli.os.kill", side_effect=PermissionError("Access denied")):
         with pytest.raises(click.ClickException, match="already running"):
             _check_stale_pid(config)
 ```
@@ -352,7 +352,7 @@ Expected: FAIL (_check_stale_pid not defined)
 
 - [ ] **Step 3: Implement _check_stale_pid**
 
-In `src/crypto_signer/cli.py`, add after the `_TYPE_MAP` definition (line 42):
+In `src/vaultsign/cli.py`, add after the `_TYPE_MAP` definition (line 42):
 
 ```python
 def _check_stale_pid(config: Config) -> None:
@@ -380,7 +380,7 @@ def _check_stale_pid(config: Config) -> None:
 
 - [ ] **Step 4: Call _check_stale_pid in start command**
 
-In `src/crypto_signer/cli.py`, in the `start()` function, add after `config = _get_config(home)` (line 202) and **before** the password prompt so users don't enter a password only to be told the daemon is already running:
+In `src/vaultsign/cli.py`, in the `start()` function, add after `config = _get_config(home)` (line 202) and **before** the password prompt so users don't enter a password only to be told the daemon is already running:
 
 ```python
     _check_stale_pid(config)
@@ -388,7 +388,7 @@ In `src/crypto_signer/cli.py`, in the `start()` function, add after `config = _g
 
 - [ ] **Step 5: Clean up PID file in stop command**
 
-In `src/crypto_signer/cli.py`, in the `stop()` function, after `client._send("shutdown")` (line 285), add:
+In `src/vaultsign/cli.py`, in the `stop()` function, after `client._send("shutdown")` (line 285), add:
 
 ```python
         if os.path.exists(config.pid_path):
@@ -403,7 +403,7 @@ Expected: All PASS
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/crypto_signer/cli.py tests/test_cli.py
+git add src/vaultsign/cli.py tests/test_cli.py
 git commit -m "fix: PID file management — stale detection and cleanup"
 ```
 
@@ -412,7 +412,7 @@ git commit -m "fix: PID file management — stale detection and cleanup"
 ### Task 5: Daemon Signal Handling + PID Cleanup
 
 **Files:**
-- Modify: `src/crypto_signer/cli.py:240-274`
+- Modify: `src/vaultsign/cli.py:240-274`
 - Test: `tests/test_cli.py`
 
 - [ ] **Step 1: Write test for Unix daemon PID cleanup on shutdown**
@@ -426,11 +426,11 @@ def test_start_daemon_unix_cleanup(tmp_path):
     if sys.platform == "win32":
         pytest.skip("Unix-only test")
 
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     pid_file = os.path.join(home, "signer.pid")
 
-    from crypto_signer.config import Config
+    from vaultsign.config import Config
     config = Config(home_dir=home)
 
     # Write a PID file as the parent would
@@ -438,7 +438,7 @@ def test_start_daemon_unix_cleanup(tmp_path):
         f.write(str(os.getpid()))
 
     # Verify our signal handler cleans up
-    from crypto_signer.cli import _daemon_cleanup_handler
+    from vaultsign.cli import _daemon_cleanup_handler
     handler = _daemon_cleanup_handler(config, None)
     handler(signal.SIGTERM, None)
 
@@ -452,7 +452,7 @@ Expected: FAIL (_daemon_cleanup_handler not defined)
 
 - [ ] **Step 3: Implement daemon signal handling**
 
-In `src/crypto_signer/cli.py`, add a helper before `_start_daemon_unix`:
+In `src/vaultsign/cli.py`, add a helper before `_start_daemon_unix`:
 
 ```python
 def _daemon_cleanup_handler(config, server):
@@ -528,6 +528,6 @@ Expected: All 65+ tests PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/crypto_signer/cli.py tests/test_cli.py
+git add src/vaultsign/cli.py tests/test_cli.py
 git commit -m "fix: daemon signal handling and PID cleanup on exit"
 ```

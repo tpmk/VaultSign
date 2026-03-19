@@ -8,11 +8,11 @@ import time
 
 import pytest
 
-from crypto_signer.client import SignerClient
-from crypto_signer.config import Config
-from crypto_signer.keystore import Keystore
-from crypto_signer.server import SignerServer
-from crypto_signer.errors import SignerLockedError
+from vaultsign.client import SignerClient
+from vaultsign.config import Config
+from vaultsign.keystore import Keystore
+from vaultsign.server import SignerServer
+from vaultsign.errors import SignerLockedError
 
 
 TEST_EVM_KEY = bytes.fromhex(
@@ -28,7 +28,7 @@ _HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
 @pytest.fixture
 def full_env(tmp_path):
     """Full integration environment: keystore + server + client."""
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     sock_path = str(home / "signer.sock")
 
@@ -132,7 +132,7 @@ def test_full_lifecycle(full_env):
 
 def test_wrong_password(full_env):
     server, client = full_env
-    from crypto_signer.errors import InvalidPasswordError
+    from vaultsign.errors import InvalidPasswordError
     with pytest.raises(InvalidPasswordError):
         client.unlock(password="wrong_password_12")
 
@@ -146,7 +146,7 @@ def test_ping(full_env):
 @pytest.fixture
 def full_env_with_opaque(tmp_path):
     """Full integration environment with both EVM and opaque keys."""
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     sock_path = str(home / "signer.sock")
 
@@ -230,7 +230,7 @@ def test_get_key_opaque_lifecycle(full_env_with_opaque):
     assert "signed_tx" in result
 
     # get_key nonexistent
-    from crypto_signer.errors import KeyNotFoundError
+    from vaultsign.errors import KeyNotFoundError
     with pytest.raises(KeyNotFoundError):
         client.get_key("nonexistent")
 

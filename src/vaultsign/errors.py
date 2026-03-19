@@ -1,4 +1,4 @@
-"""Error definitions for crypto-signer.
+"""Error definitions for VaultSign.
 
 Error messages MUST NEVER contain plaintext passwords, private keys, or mnemonics.
 """

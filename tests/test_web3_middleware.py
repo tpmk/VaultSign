@@ -1,6 +1,6 @@
 import pytest
 
-from crypto_signer.web3.middleware import SignerMiddleware
+from vaultsign.web3.middleware import SignerMiddleware
 
 
 def test_middleware_instantiates():

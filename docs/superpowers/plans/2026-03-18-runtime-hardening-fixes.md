@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix 5 runtime correctness and platform reliability defects in crypto-signer without changing user-facing command semantics.
+**Goal:** Fix 5 runtime correctness and platform reliability defects in vaultsign without changing user-facing command semantics.
 
 **Architecture:** Each fix stays within its existing module boundary. Config path derivation is purely data-layer. VirtualLock is isolated to platform_win.py. IPC validation adds a pre-dispatch layer in server.py. Client discovery extends the existing `_resolve_tcp_from_socket_path()` path. Windows daemon lifecycle replaces the blocking thread-join with a detached subprocess spawned via a hidden `_serve` click subcommand.
 
@@ -17,7 +17,7 @@
 ### Task 1: Fix Config.from_file() path derivation
 
 **Files:**
-- Modify: `src/crypto_signer/config.py:53-69`
+- Modify: `src/vaultsign/config.py:53-69`
 - Test: `tests/test_config.py`
 
 - [ ] **Step 1: Write the failing tests**
@@ -69,11 +69,11 @@ def test_load_home_dir_overrides_from_file(tmp_path):
 
 Run: `uv run pytest tests/test_config.py::test_from_file_sets_home_dir_to_config_parent tests/test_config.py::test_from_file_explicit_socket_path_not_overridden -v`
 
-Expected: FAIL — `c.home_dir` returns default `~/.crypto-signer` instead of `config_dir`.
+Expected: FAIL — `c.home_dir` returns default `~/.vaultsign` instead of `config_dir`.
 
 - [ ] **Step 3: Implement the fix**
 
-In `src/crypto_signer/config.py`, modify `from_file()` — inject `home_dir` into kwargs before calling `cls(**kwargs)`:
+In `src/vaultsign/config.py`, modify `from_file()` — inject `home_dir` into kwargs before calling `cls(**kwargs)`:
 
 ```python
 @classmethod
@@ -107,7 +107,7 @@ Expected: All PASS (new + existing `test_config_from_toml`, `test_config_missing
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/config.py tests/test_config.py
+git add src/vaultsign/config.py tests/test_config.py
 git commit -m "fix: Config.from_file() derives home_dir from config file directory"
 ```
 
@@ -116,7 +116,7 @@ git commit -m "fix: Config.from_file() derives home_dir from config file directo
 ### Task 2: Fix VirtualLock ctypes signatures
 
 **Files:**
-- Modify: `src/crypto_signer/security/platform_win.py:13-24`
+- Modify: `src/vaultsign/security/platform_win.py:13-24`
 - Test: `tests/test_platform.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -130,7 +130,7 @@ def test_lock_memory_sets_virtuallock_argtypes():
         pytest.skip("Windows-only test")
 
     import ctypes
-    from crypto_signer.security.platform_win import lock_memory
+    from vaultsign.security.platform_win import lock_memory
 
     buf = bytearray(64)
     lock_memory(buf)
@@ -148,7 +148,7 @@ Expected: FAIL (on Windows) or SKIP (on non-Windows).
 
 - [ ] **Step 3: Implement the fix**
 
-Replace `lock_memory` in `src/crypto_signer/security/platform_win.py`:
+Replace `lock_memory` in `src/vaultsign/security/platform_win.py`:
 
 ```python
 def lock_memory(buf: bytearray) -> bool:
@@ -176,7 +176,7 @@ Expected: All PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/security/platform_win.py tests/test_platform.py
+git add src/vaultsign/security/platform_win.py tests/test_platform.py
 git commit -m "fix: set explicit VirtualLock ctypes argtypes for 64-bit correctness"
 ```
 
@@ -187,7 +187,7 @@ git commit -m "fix: set explicit VirtualLock ctypes argtypes for 64-bit correctn
 ### Task 3: Add params type guard and catch-all to _handle_request
 
 **Files:**
-- Modify: `src/crypto_signer/server.py:146-176`
+- Modify: `src/vaultsign/server.py:146-176`
 - Test: `tests/test_server.py`
 
 - [ ] **Step 1: Write failing tests for params type guard and catch-all**
@@ -252,7 +252,7 @@ Expected: FAIL — string params causes handler `AttributeError`, catch-all does
 
 - [ ] **Step 3: Implement params type guard and catch-all**
 
-In `src/crypto_signer/server.py`, replace lines 169-176 (the method/params/dispatch section of `_handle_request`):
+In `src/vaultsign/server.py`, replace lines 169-176 (the method/params/dispatch section of `_handle_request`):
 
 ```python
         method = request.get("method", "")
@@ -282,7 +282,7 @@ Expected: All PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/server.py tests/test_server.py
+git add src/vaultsign/server.py tests/test_server.py
 git commit -m "fix: add params type guard and catch-all to IPC request handling"
 ```
 
@@ -291,7 +291,7 @@ git commit -m "fix: add params type guard and catch-all to IPC request handling"
 ### Task 4: Add per-method param validation
 
 **Files:**
-- Modify: `src/crypto_signer/server.py:178-194` (add `_validate_params`, modify `_dispatch`)
+- Modify: `src/vaultsign/server.py:178-194` (add `_validate_params`, modify `_dispatch`)
 - Test: `tests/test_server.py`
 
 - [ ] **Step 1: Write failing tests for per-method validation**
@@ -379,7 +379,7 @@ Expected: FAIL — these will hit the catch-all ("Internal error") rather than s
 
 - [ ] **Step 3: Add `_validate_params` helper and call from `_dispatch`**
 
-In `src/crypto_signer/server.py`, add before `_handle_ping` (around line 196):
+In `src/vaultsign/server.py`, add before `_handle_ping` (around line 196):
 
 ```python
     def _validate_params(self, method: str, params: dict) -> None:
@@ -451,7 +451,7 @@ Expected: All PASS (new + existing).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/server.py tests/test_server.py
+git add src/vaultsign/server.py tests/test_server.py
 git commit -m "fix: add per-method IPC param validation"
 ```
 
@@ -462,8 +462,8 @@ git commit -m "fix: add per-method IPC param validation"
 ### Task 5: Fix default SignerClient() discovery on Windows
 
 **Files:**
-- Modify: `src/crypto_signer/client.py:62-71`
-- Modify: `src/crypto_signer/server.py:287-291` (docstring only)
+- Modify: `src/vaultsign/client.py:62-71`
+- Modify: `src/vaultsign/server.py:287-291` (docstring only)
 - Test: `tests/test_client.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -473,13 +473,13 @@ In `tests/test_client.py`, add:
 ```python
 def test_default_client_reads_discovery_files_on_windows(tmp_path):
     """SignerClient() with no args on Windows should read signer.port/signer.token."""
-    home_dir = tmp_path / ".crypto-signer"
+    home_dir = tmp_path / ".vaultsign"
     home_dir.mkdir()
     (home_dir / "signer.port").write_text("54321")
     (home_dir / "signer.token").write_text("test-token-abc")
 
-    with patch("crypto_signer.client._HAS_AF_UNIX", False), \
-         patch("crypto_signer.client._default_socket_path",
+    with patch("vaultsign.client._HAS_AF_UNIX", False), \
+         patch("vaultsign.client._default_socket_path",
                return_value=str(home_dir / "signer.sock")):
         client = SignerClient()
 
@@ -491,11 +491,11 @@ def test_default_client_reads_discovery_files_on_windows(tmp_path):
 
 def test_default_client_raises_when_no_discovery_files(tmp_path):
     """SignerClient() on Windows should fail-fast if discovery files don't exist."""
-    home_dir = tmp_path / ".crypto-signer"
+    home_dir = tmp_path / ".vaultsign"
     home_dir.mkdir()
 
-    with patch("crypto_signer.client._HAS_AF_UNIX", False), \
-         patch("crypto_signer.client._default_socket_path",
+    with patch("vaultsign.client._HAS_AF_UNIX", False), \
+         patch("vaultsign.client._default_socket_path",
                return_value=str(home_dir / "signer.sock")):
         with pytest.raises(SignerConnectionError, match="port file"):
             SignerClient()
@@ -509,7 +509,7 @@ Expected: FAIL — first test: client hardcodes port 9473 instead of reading fil
 
 - [ ] **Step 3: Implement the fix**
 
-In `src/crypto_signer/client.py`, replace lines 65-71:
+In `src/vaultsign/client.py`, replace lines 65-71:
 
 ```python
         elif not socket_path and not host:
@@ -523,7 +523,7 @@ In `src/crypto_signer/client.py`, replace lines 65-71:
 
 - [ ] **Step 4: Add docstring to `_serve_unix`**
 
-In `src/crypto_signer/server.py`, update the docstring at line 288:
+In `src/vaultsign/server.py`, update the docstring at line 288:
 
 ```python
     def _serve_unix(self) -> None:
@@ -543,7 +543,7 @@ Expected: All PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/crypto_signer/client.py src/crypto_signer/server.py tests/test_client.py
+git add src/vaultsign/client.py src/vaultsign/server.py tests/test_client.py
 git commit -m "fix: SignerClient() default discovery reads Windows TCP discovery files"
 ```
 
@@ -554,16 +554,16 @@ git commit -m "fix: SignerClient() default discovery reads Windows TCP discovery
 ### Task 6: Replace blocking Windows daemon with detached subprocess
 
 **Files:**
-- Create: `src/crypto_signer/__main__.py`
-- Modify: `src/crypto_signer/cli.py:244-275` (start command), `cli.py:319-343` (_start_daemon_windows)
+- Create: `src/vaultsign/__main__.py`
+- Modify: `src/vaultsign/cli.py:244-275` (start command), `cli.py:319-343` (_start_daemon_windows)
 - Test: `tests/test_cli.py`
 
 - [ ] **Step 1: Create `__main__.py`**
 
-Create `src/crypto_signer/__main__.py` (required for `python -m crypto_signer _serve`):
+Create `src/vaultsign/__main__.py` (required for `python -m vaultsign _serve`):
 
 ```python
-"""Allow running as python -m crypto_signer."""
+"""Allow running as python -m vaultsign."""
 from .cli import main
 
 main()
@@ -583,18 +583,18 @@ Then add tests:
 ```python
 def test_start_daemon_windows_spawns_subprocess(tmp_path):
     """Windows daemon should spawn a subprocess, not block on thread.join()."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     ks_path = os.path.join(home, "keystore.json")
     with open(ks_path, "w") as f:
         json.dump({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}, f)
 
-    from crypto_signer.cli import _start_daemon_windows
-    from crypto_signer.config import Config
+    from vaultsign.cli import _start_daemon_windows
+    from vaultsign.config import Config
 
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.subprocess.Popen") as mock_popen:
+    with patch("vaultsign.cli.subprocess.Popen") as mock_popen:
         mock_proc = mock_popen.return_value
         mock_proc.stdout.readline.return_value = json.dumps(
             {"status": "ready", "pid": 12345}
@@ -611,18 +611,18 @@ def test_start_daemon_windows_spawns_subprocess(tmp_path):
 
 def test_start_daemon_windows_reports_child_error(tmp_path):
     """If child reports error, parent should raise ClickException."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     ks_path = os.path.join(home, "keystore.json")
     with open(ks_path, "w") as f:
         json.dump({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}, f)
 
-    from crypto_signer.cli import _start_daemon_windows
-    from crypto_signer.config import Config
+    from vaultsign.cli import _start_daemon_windows
+    from vaultsign.config import Config
 
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.subprocess.Popen") as mock_popen:
+    with patch("vaultsign.cli.subprocess.Popen") as mock_popen:
         mock_proc = mock_popen.return_value
         mock_proc.stdout.readline.return_value = json.dumps(
             {"status": "error", "message": "bad password"}
@@ -635,19 +635,19 @@ def test_start_daemon_windows_reports_child_error(tmp_path):
 
 def test_start_daemon_windows_handles_timeout(tmp_path):
     """If child doesn't respond within timeout, parent should report error."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     ks_path = os.path.join(home, "keystore.json")
     with open(ks_path, "w") as f:
         json.dump({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}, f)
 
-    from crypto_signer.cli import _start_daemon_windows
-    from crypto_signer.config import Config
+    from vaultsign.cli import _start_daemon_windows
+    from vaultsign.config import Config
 
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.subprocess.Popen") as mock_popen, \
-         patch("crypto_signer.cli._DAEMON_READY_TIMEOUT", 0.1):
+    with patch("vaultsign.cli.subprocess.Popen") as mock_popen, \
+         patch("vaultsign.cli._DAEMON_READY_TIMEOUT", 0.1):
         mock_proc = mock_popen.return_value
         # Simulate a hanging child: readline blocks, so the Thread.join
         # times out and is_alive() returns True.
@@ -671,7 +671,7 @@ Expected: FAIL — `_start_daemon_windows` has wrong signature (currently takes 
 
 - [ ] **Step 4: Implement the new `_start_daemon_windows` and `_serve` subcommand**
 
-In `src/crypto_signer/cli.py`:
+In `src/vaultsign/cli.py`:
 
 **4a.** Add `import subprocess` to imports (top of file, around line 8). Keep `import threading` — it's still needed for the timeout reader thread in `_start_daemon_windows`.
 
@@ -739,7 +739,7 @@ def start(daemon, home):
 ```python
 def _start_daemon_windows(password_str: str, config: Config):
     """Spawn a detached child process to run the signer daemon on Windows."""
-    cmd = [sys.executable, "-m", "crypto_signer", "_serve", "--home", config.home_dir]
+    cmd = [sys.executable, "-m", "vaultsign", "_serve", "--home", config.home_dir]
 
     # CREATE_NO_WINDOW=0x08000000 | DETACHED_PROCESS=0x00000008
     creation_flags = (0x08000000 | 0x00000008) if sys.platform == "win32" else 0
@@ -871,7 +871,7 @@ Expected: All PASS (new + existing).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/crypto_signer/__main__.py src/crypto_signer/cli.py tests/test_cli.py
+git add src/vaultsign/__main__.py src/vaultsign/cli.py tests/test_cli.py
 git commit -m "fix: Windows daemon mode spawns detached subprocess instead of blocking"
 ```
 
@@ -891,13 +891,13 @@ Expected: All PASS. No regressions.
 
 - [ ] **Step 2: Verify imports**
 
-Run: `python -c "from crypto_signer import SignerClient; print('OK')"`
+Run: `python -c "from vaultsign import SignerClient; print('OK')"`
 
 Expected: `OK`
 
 - [ ] **Step 3: Verify `_serve` is hidden**
 
-Run: `uv run python -m crypto_signer --help`
+Run: `uv run python -m vaultsign --help`
 
 Expected: `_serve` does NOT appear in help output.
 
@@ -906,12 +906,12 @@ Expected: `_serve` does NOT appear in help output.
 Run: `git diff --stat HEAD~6`
 
 Expected: Only the intended files changed:
-- `src/crypto_signer/__main__.py` (new)
-- `src/crypto_signer/config.py`
-- `src/crypto_signer/client.py`
-- `src/crypto_signer/server.py`
-- `src/crypto_signer/security/platform_win.py`
-- `src/crypto_signer/cli.py`
+- `src/vaultsign/__main__.py` (new)
+- `src/vaultsign/config.py`
+- `src/vaultsign/client.py`
+- `src/vaultsign/server.py`
+- `src/vaultsign/security/platform_win.py`
+- `src/vaultsign/cli.py`
 - `tests/test_config.py`
 - `tests/test_client.py`
 - `tests/test_server.py`

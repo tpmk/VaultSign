@@ -13,8 +13,8 @@
 ### Task 1: Add `KeyNotFoundError` to error model
 
 **Files:**
-- Modify: `src/crypto_signer/errors.py`
-- Modify: `src/crypto_signer/__init__.py`
+- Modify: `src/vaultsign/errors.py`
+- Modify: `src/vaultsign/__init__.py`
 - Test: `tests/test_errors.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -23,7 +23,7 @@ In `tests/test_errors.py`, add:
 
 ```python
 def test_key_not_found_error_code():
-    from crypto_signer.errors import KeyNotFoundError, ErrorCode
+    from vaultsign.errors import KeyNotFoundError, ErrorCode
     err = KeyNotFoundError("key 'foo' not found")
     assert err.code == ErrorCode.KEY_NOT_FOUND
     assert err.code.value == 1010
@@ -33,7 +33,7 @@ def test_key_not_found_error_code():
 
 
 def test_key_not_found_error_roundtrip():
-    from crypto_signer.errors import KeyNotFoundError, SignerError
+    from vaultsign.errors import KeyNotFoundError, SignerError
     err = KeyNotFoundError("not found")
     d = err.to_dict()
     restored = SignerError.from_dict(d)
@@ -47,7 +47,7 @@ Expected: FAIL with `ImportError: cannot import name 'KeyNotFoundError'`
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `src/crypto_signer/errors.py`, add to `ErrorCode` enum:
+In `src/vaultsign/errors.py`, add to `ErrorCode` enum:
 
 ```python
 KEY_NOT_FOUND = 1010
@@ -60,7 +60,7 @@ class KeyNotFoundError(SignerError):
     code = ErrorCode.KEY_NOT_FOUND
 ```
 
-In `src/crypto_signer/__init__.py`, add `KeyNotFoundError` to imports and `__all__`.
+In `src/vaultsign/__init__.py`, add `KeyNotFoundError` to imports and `__all__`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -70,7 +70,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/errors.py src/crypto_signer/__init__.py tests/test_errors.py
+git add src/vaultsign/errors.py src/vaultsign/__init__.py tests/test_errors.py
 git commit -m "feat: add KeyNotFoundError (code 1010) to error model"
 ```
 
@@ -79,7 +79,7 @@ git commit -m "feat: add KeyNotFoundError (code 1010) to error model"
 ### Task 2: Support opaque keys in keystore — data model & add/decrypt
 
 **Files:**
-- Modify: `src/crypto_signer/keystore.py`
+- Modify: `src/vaultsign/keystore.py`
 - Test: `tests/test_keystore.py`
 
 - [ ] **Step 1: Write failing tests for opaque key storage**
@@ -205,7 +205,7 @@ Expected: FAIL — `address` type mismatch, one-per-chain check blocks opaque, n
 
 - [ ] **Step 3: Implement keystore changes**
 
-In `src/crypto_signer/keystore.py`:
+In `src/vaultsign/keystore.py`:
 
 **3a.** Change `address` field type in both dataclasses:
 
@@ -304,7 +304,7 @@ Expected: All PASS (both new and existing tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/keystore.py tests/test_keystore.py
+git add src/vaultsign/keystore.py tests/test_keystore.py
 git commit -m "feat: support opaque key type in keystore with name uniqueness"
 ```
 
@@ -313,7 +313,7 @@ git commit -m "feat: support opaque key type in keystore with name uniqueness"
 ### Task 3: Add name-based key lookup to keystore
 
 **Files:**
-- Modify: `src/crypto_signer/keystore.py`
+- Modify: `src/vaultsign/keystore.py`
 - Test: `tests/test_keystore.py`
 
 - [ ] **Step 1: Write failing test**
@@ -360,7 +360,7 @@ Expected: FAIL with `AttributeError: type object 'Keystore' has no attribute 'fi
 
 - [ ] **Step 3: Implement `find_by_name`**
 
-In `src/crypto_signer/keystore.py`, add static method to `Keystore`:
+In `src/vaultsign/keystore.py`, add static method to `Keystore`:
 
 ```python
 @staticmethod
@@ -380,7 +380,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/keystore.py tests/test_keystore.py
+git add src/vaultsign/keystore.py tests/test_keystore.py
 git commit -m "feat: add name-based key lookup to keystore"
 ```
 
@@ -389,7 +389,7 @@ git commit -m "feat: add name-based key lookup to keystore"
 ### Task 4: Add `get_key` IPC handler to server
 
 **Files:**
-- Modify: `src/crypto_signer/server.py`
+- Modify: `src/vaultsign/server.py`
 - Test: `tests/test_server.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -400,7 +400,7 @@ In `tests/test_server.py`, add a new fixture that includes an opaque key, and ne
 @pytest.fixture
 def server_env_with_opaque(tmp_path):
     """Set up a keystore with both EVM and opaque keys."""
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     ks_path = home / "keystore.json"
     sock_path = str(home / "signer.sock")
@@ -552,7 +552,7 @@ Also add a rate-limit-specific fixture and test:
 @pytest.fixture
 def server_env_low_rate_limit(tmp_path):
     """Server with rate_limit=2 for testing rate limiting."""
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     ks_path = home / "keystore.json"
     sock_path = str(home / "signer.sock")
@@ -632,7 +632,7 @@ Expected: FAIL — `get_key` method not in dispatch table
 
 - [ ] **Step 3: Implement server changes**
 
-In `src/crypto_signer/server.py`:
+In `src/vaultsign/server.py`:
 
 **3a.** Add import at top:
 
@@ -727,7 +727,7 @@ Expected: All PASS (both new and existing tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/server.py tests/test_server.py
+git add src/vaultsign/server.py tests/test_server.py
 git commit -m "feat: add get_key IPC handler for key delivery by name"
 ```
 
@@ -736,7 +736,7 @@ git commit -m "feat: add get_key IPC handler for key delivery by name"
 ### Task 5: Add `get_key` to client library
 
 **Files:**
-- Modify: `src/crypto_signer/client.py`
+- Modify: `src/vaultsign/client.py`
 - Test: `tests/test_client.py`
 
 - [ ] **Step 1: Write failing test**
@@ -747,7 +747,7 @@ In `tests/test_client.py`, add (check existing test patterns first — client te
 import base64
 import json
 from unittest.mock import patch, MagicMock
-from crypto_signer.client import SignerClient
+from vaultsign.client import SignerClient
 
 
 def test_get_key_returns_decoded_string():
@@ -775,7 +775,7 @@ Expected: FAIL with `AttributeError: 'SignerClient' object has no attribute 'get
 
 - [ ] **Step 3: Implement client `get_key`**
 
-In `src/crypto_signer/client.py`, add `import base64` at the module level (top of file, next to other imports). Then add method to `SignerClient`:
+In `src/vaultsign/client.py`, add `import base64` at the module level (top of file, next to other imports). Then add method to `SignerClient`:
 
 ```python
 def get_key(self, name: str) -> str:
@@ -796,7 +796,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/client.py tests/test_client.py
+git add src/vaultsign/client.py tests/test_client.py
 git commit -m "feat: add get_key method to SignerClient"
 ```
 
@@ -805,7 +805,7 @@ git commit -m "feat: add get_key method to SignerClient"
 ### Task 6: Update CLI `add` command — auto-detect key type
 
 **Files:**
-- Modify: `src/crypto_signer/cli.py`
+- Modify: `src/vaultsign/cli.py`
 - Test: `tests/test_cli.py`
 
 - [ ] **Step 1: Write failing tests**
@@ -815,9 +815,9 @@ In `tests/test_cli.py`, add:
 ```python
 def test_add_key_auto_detect_evm(runner, tmp_path):
     """add --key without --type auto-detects secp256k1."""
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     test_key = "4c0883a69102937d6231471b5dbb6204fe512961708279f15b0d7e4b2cd53f37"
@@ -837,9 +837,9 @@ def test_add_key_auto_detect_evm(runner, tmp_path):
 
 def test_add_key_auto_detect_opaque(runner, tmp_path):
     """add --key without --type falls back to opaque for non-EVM keys."""
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     # Not a valid hex private key — should fall back to opaque
@@ -860,9 +860,9 @@ def test_add_key_auto_detect_opaque(runner, tmp_path):
 
 def test_add_key_explicit_opaque(runner, tmp_path):
     """add --type opaque skips auto-detection."""
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     # Even a valid hex key should be stored as opaque when --type opaque
@@ -887,7 +887,7 @@ Expected: FAIL — `--type` is currently required
 
 - [ ] **Step 3: Implement CLI add changes**
 
-In `src/crypto_signer/cli.py`:
+In `src/vaultsign/cli.py`:
 
 **3a.** Update the `add` command signature — `--type` becomes optional with `opaque` added:
 
@@ -992,7 +992,7 @@ Expected: All PASS (both new and existing tests)
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/cli.py tests/test_cli.py
+git add src/vaultsign/cli.py tests/test_cli.py
 git commit -m "feat: auto-detect key type on add, support --type opaque"
 ```
 
@@ -1001,7 +1001,7 @@ git commit -m "feat: auto-detect key type on add, support --type opaque"
 ### Task 7: Update CLI `list` command for opaque keys
 
 **Files:**
-- Modify: `src/crypto_signer/cli.py`
+- Modify: `src/vaultsign/cli.py`
 - Test: `tests/test_cli.py`
 
 - [ ] **Step 1: Write failing test**
@@ -1011,9 +1011,9 @@ In `tests/test_cli.py`, add:
 ```python
 def test_list_shows_opaque_key(runner, tmp_path):
     """list command shows opaque keys with (none) for address."""
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     # Add opaque key
@@ -1036,7 +1036,7 @@ Expected: FAIL — current `list` uses `reverse_type` mapping and doesn't handle
 
 - [ ] **Step 3: Update `list_keys` command**
 
-In `src/crypto_signer/cli.py`, replace the `list_keys` function:
+In `src/vaultsign/cli.py`, replace the `list_keys` function:
 
 ```python
 @main.command("list")
@@ -1047,7 +1047,7 @@ def list_keys(home):
     try:
         ks = Keystore.load(config.keystore_path)
     except WalletFormatError:
-        click.echo("No keystore found. Run 'crypto-signer init' first.")
+        click.echo("No keystore found. Run 'vaultsign init' first.")
         return
 
     keys = ks.list_keys()
@@ -1070,7 +1070,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/cli.py tests/test_cli.py
+git add src/vaultsign/cli.py tests/test_cli.py
 git commit -m "feat: update list command to display opaque keys"
 ```
 
@@ -1079,7 +1079,7 @@ git commit -m "feat: update list command to display opaque keys"
 ### Task 8: Add `exec` CLI command
 
 **Files:**
-- Modify: `src/crypto_signer/cli.py`
+- Modify: `src/vaultsign/cli.py`
 - Test: `tests/test_cli.py`
 
 - [ ] **Step 1: Write failing test**
@@ -1093,11 +1093,11 @@ def test_exec_injects_env_vars(runner, tmp_path):
     import socket
     import threading
     import time
-    from crypto_signer.config import Config
-    from crypto_signer.keystore import Keystore
-    from crypto_signer.server import SignerServer
+    from vaultsign.config import Config
+    from vaultsign.keystore import Keystore
+    from vaultsign.server import SignerServer
 
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     sock_path = str(home / "signer.sock")
 
@@ -1154,7 +1154,7 @@ Expected: FAIL with `No such command 'exec'`
 
 - [ ] **Step 3: Implement `exec` command**
 
-In `src/crypto_signer/cli.py`, add:
+In `src/vaultsign/cli.py`, add:
 
 ```python
 @main.command("exec", context_settings={"ignore_unknown_options": True})
@@ -1207,7 +1207,7 @@ Expected: All PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/cli.py tests/test_cli.py
+git add src/vaultsign/cli.py tests/test_cli.py
 git commit -m "feat: add exec command for env var key injection"
 ```
 
@@ -1229,7 +1229,7 @@ TEST_OPAQUE_KEY = "my-lighter-api-secret-key-value"
 @pytest.fixture
 def full_env_with_opaque(tmp_path):
     """Full integration environment with both EVM and opaque keys."""
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     sock_path = str(home / "signer.sock")
 
@@ -1285,7 +1285,7 @@ def test_get_key_opaque_lifecycle(full_env_with_opaque):
     server, client = full_env_with_opaque
 
     # Locked — get_key should fail
-    from crypto_signer.errors import SignerLockedError
+    from vaultsign.errors import SignerLockedError
     with pytest.raises(SignerLockedError):
         client.get_key("lighter-api")
 
@@ -1312,7 +1312,7 @@ def test_get_key_opaque_lifecycle(full_env_with_opaque):
     assert "signed_tx" in result
 
     # get_key nonexistent
-    from crypto_signer.errors import KeyNotFoundError
+    from vaultsign.errors import KeyNotFoundError
     with pytest.raises(KeyNotFoundError):
         client.get_key("nonexistent")
 
@@ -1396,11 +1396,11 @@ git commit -m "test: add integration and regression tests for key delivery"
 
 **Files:**
 - Modify: `SECURITY.md` (if it exists)
-- Modify: `src/crypto_signer/__init__.py`
+- Modify: `src/vaultsign/__init__.py`
 
 - [ ] **Step 1: Ensure `KeyNotFoundError` is exported**
 
-Verify `src/crypto_signer/__init__.py` includes `KeyNotFoundError` in imports and `__all__` (should already be done in Task 1, but verify).
+Verify `src/vaultsign/__init__.py` includes `KeyNotFoundError` in imports and `__all__` (should already be done in Task 1, but verify).
 
 - [ ] **Step 2: Update SECURITY.md**
 
@@ -1428,6 +1428,6 @@ Expected: All PASS
 - [ ] **Step 4: Commit**
 
 ```bash
-git add SECURITY.md src/crypto_signer/__init__.py
+git add SECURITY.md src/vaultsign/__init__.py
 git commit -m "docs: update security documentation for key delivery"
 ```

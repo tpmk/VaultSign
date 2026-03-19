@@ -1,4 +1,4 @@
-# crypto-signer Implementation Plan
+# vaultsign Implementation Plan
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,34 +8,34 @@
 
 **Tech Stack:** Python 3.10+, click (CLI), argon2-cffi (KDF), cryptography (AEAD), eth-account (EVM), solders (Solana), bip-utils (mnemonic derivation), tomli (config)
 
-**Spec:** `docs/superpowers/specs/2026-03-11-crypto-signer-design.md`
+**Spec:** `docs/superpowers/specs/2026-03-11-vaultsign-design.md`
 
 ---
 
 ## File Structure
 
-All source lives under `src/crypto_signer/`. Tests mirror the source layout under `tests/`.
+All source lives under `src/vaultsign/`. Tests mirror the source layout under `tests/`.
 
 | File | Responsibility |
 |------|---------------|
 | `pyproject.toml` | Package metadata, dependencies, CLI entry point |
-| `src/crypto_signer/__init__.py` | Public API: exports `SignerClient`, errors |
-| `src/crypto_signer/errors.py` | All exception classes and error codes |
-| `src/crypto_signer/security/zeroize.py` | `SecureByteArray` wrapper + `zeroize()` helper |
-| `src/crypto_signer/security/platform.py` | Platform dispatch (imports Unix or Win module) |
-| `src/crypto_signer/security/platform_unix.py` | `mlock`, `prctl`, `SO_PEERCRED`, `chmod 0600` |
-| `src/crypto_signer/security/platform_win.py` | `VirtualLock`, ACL via `icacls`, no peer creds |
-| `src/crypto_signer/security/harden.py` | High-level `harden_process()` + `check_swap()` |
-| `src/crypto_signer/security/safe_input.py` | `secure_getpass()` returning `bytearray` |
-| `src/crypto_signer/config.py` | Load `config.toml`, merge defaults |
-| `src/crypto_signer/keystore.py` | Encrypt/decrypt/read/write `keystore.json` |
-| `src/crypto_signer/crypto/evm.py` | EVM signing engine: sign tx, message, typed data |
-| `src/crypto_signer/crypto/solana.py` | Solana signing engine: sign tx, message |
-| `src/crypto_signer/state.py` | `SignerState` enum + `SignerStateMachine` |
-| `src/crypto_signer/server.py` | Unix socket server, request dispatch, rate limiter |
-| `src/crypto_signer/client.py` | `SignerClient` with `.evm` / `.solana` sub-objects |
-| `src/crypto_signer/cli.py` | All CLI commands (click) |
-| `src/crypto_signer/web3/middleware.py` | web3.py `SignerMiddleware` |
+| `src/vaultsign/__init__.py` | Public API: exports `SignerClient`, errors |
+| `src/vaultsign/errors.py` | All exception classes and error codes |
+| `src/vaultsign/security/zeroize.py` | `SecureByteArray` wrapper + `zeroize()` helper |
+| `src/vaultsign/security/platform.py` | Platform dispatch (imports Unix or Win module) |
+| `src/vaultsign/security/platform_unix.py` | `mlock`, `prctl`, `SO_PEERCRED`, `chmod 0600` |
+| `src/vaultsign/security/platform_win.py` | `VirtualLock`, ACL via `icacls`, no peer creds |
+| `src/vaultsign/security/harden.py` | High-level `harden_process()` + `check_swap()` |
+| `src/vaultsign/security/safe_input.py` | `secure_getpass()` returning `bytearray` |
+| `src/vaultsign/config.py` | Load `config.toml`, merge defaults |
+| `src/vaultsign/keystore.py` | Encrypt/decrypt/read/write `keystore.json` |
+| `src/vaultsign/crypto/evm.py` | EVM signing engine: sign tx, message, typed data |
+| `src/vaultsign/crypto/solana.py` | Solana signing engine: sign tx, message |
+| `src/vaultsign/state.py` | `SignerState` enum + `SignerStateMachine` |
+| `src/vaultsign/server.py` | Unix socket server, request dispatch, rate limiter |
+| `src/vaultsign/client.py` | `SignerClient` with `.evm` / `.solana` sub-objects |
+| `src/vaultsign/cli.py` | All CLI commands (click) |
+| `src/vaultsign/web3/middleware.py` | web3.py `SignerMiddleware` |
 
 ---
 
@@ -45,10 +45,10 @@ All source lives under `src/crypto_signer/`. Tests mirror the source layout unde
 
 **Files:**
 - Create: `pyproject.toml`
-- Create: `src/crypto_signer/__init__.py`
-- Create: `src/crypto_signer/security/__init__.py`
-- Create: `src/crypto_signer/crypto/__init__.py`
-- Create: `src/crypto_signer/web3/__init__.py`
+- Create: `src/vaultsign/__init__.py`
+- Create: `src/vaultsign/security/__init__.py`
+- Create: `src/vaultsign/crypto/__init__.py`
+- Create: `src/vaultsign/web3/__init__.py`
 - Create: `tests/__init__.py`
 - Create: `tests/conftest.py`
 - Create: `.gitignore`
@@ -61,7 +61,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "crypto-signer"
+name = "vaultsign"
 version = "0.1.0"
 description = "Encrypted wallet + memory-resident signing service for crypto automation"
 readme = "README.md"
@@ -86,10 +86,10 @@ dev = [
 ]
 
 [project.scripts]
-crypto-signer = "crypto_signer.cli:main"
+vaultsign = "vaultsign.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/crypto_signer"]
+packages = ["src/vaultsign"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -99,10 +99,10 @@ pythonpath = ["src"]
 - [ ] **Step 2: Create directory structure and __init__ files**
 
 Create empty `__init__.py` in:
-- `src/crypto_signer/__init__.py` (will be populated later)
-- `src/crypto_signer/security/__init__.py`
-- `src/crypto_signer/crypto/__init__.py`
-- `src/crypto_signer/web3/__init__.py`
+- `src/vaultsign/__init__.py` (will be populated later)
+- `src/vaultsign/security/__init__.py`
+- `src/vaultsign/crypto/__init__.py`
+- `src/vaultsign/web3/__init__.py`
 - `tests/__init__.py`
 
 Create `tests/conftest.py`:
@@ -116,7 +116,7 @@ import pytest
 @pytest.fixture
 def tmp_home(tmp_path):
     """Provide a temporary home directory for tests."""
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     return home
 
@@ -144,7 +144,7 @@ build/
 - [ ] **Step 4: Initialize git repo and commit**
 
 ```bash
-cd "E:/OneDrive/00-personal-archive/crypto/crypto-signer"
+cd "E:/OneDrive/00-personal-archive/crypto/vaultsign"
 git init
 git add pyproject.toml src/ tests/ .gitignore
 git commit -m "feat: initialize project scaffolding"
@@ -155,14 +155,14 @@ git commit -m "feat: initialize project scaffolding"
 ### Task 2: Error Definitions
 
 **Files:**
-- Create: `src/crypto_signer/errors.py`
+- Create: `src/vaultsign/errors.py`
 - Create: `tests/test_errors.py`
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # tests/test_errors.py
-from crypto_signer.errors import (
+from vaultsign.errors import (
     SignerError,
     SignerConnectionError,
     SignerLockedError,
@@ -228,14 +228,14 @@ def test_error_repr_does_not_leak_secrets():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd "E:/OneDrive/00-personal-archive/crypto/crypto-signer" && python -m pytest tests/test_errors.py -v`
+Run: `cd "E:/OneDrive/00-personal-archive/crypto/vaultsign" && python -m pytest tests/test_errors.py -v`
 Expected: FAIL (ImportError)
 
 - [ ] **Step 3: Write the implementation**
 
 ```python
-# src/crypto_signer/errors.py
-"""Error definitions for crypto-signer.
+# src/vaultsign/errors.py
+"""Error definitions for vaultsign.
 
 Error messages MUST NEVER contain plaintext passwords, private keys, or mnemonics.
 """
@@ -329,13 +329,13 @@ class PermissionDeniedError(SignerError):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd "E:/OneDrive/00-personal-archive/crypto/crypto-signer" && python -m pytest tests/test_errors.py -v`
+Run: `cd "E:/OneDrive/00-personal-archive/crypto/vaultsign" && python -m pytest tests/test_errors.py -v`
 Expected: All 6 tests PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/errors.py tests/test_errors.py
+git add src/vaultsign/errors.py tests/test_errors.py
 git commit -m "feat: add error definitions and error code table"
 ```
 
@@ -344,14 +344,14 @@ git commit -m "feat: add error definitions and error code table"
 ### Task 3: Security — Zeroize
 
 **Files:**
-- Create: `src/crypto_signer/security/zeroize.py`
+- Create: `src/vaultsign/security/zeroize.py`
 - Create: `tests/test_security.py`
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 # tests/test_security.py
-from crypto_signer.security.zeroize import zeroize, SecureByteArray
+from vaultsign.security.zeroize import zeroize, SecureByteArray
 
 
 def test_zeroize_bytearray():
@@ -401,7 +401,7 @@ Expected: FAIL (ImportError)
 - [ ] **Step 3: Write the implementation**
 
 ```python
-# src/crypto_signer/security/zeroize.py
+# src/vaultsign/security/zeroize.py
 """Secure memory zeroization utilities.
 
 Provides best-effort zeroization for bytearray objects in Python.
@@ -463,7 +463,7 @@ Expected: All 6 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/security/zeroize.py tests/test_security.py
+git add src/vaultsign/security/zeroize.py tests/test_security.py
 git commit -m "feat: add secure zeroization utilities"
 ```
 
@@ -472,9 +472,9 @@ git commit -m "feat: add secure zeroization utilities"
 ### Task 4: Security — Platform Abstraction
 
 **Files:**
-- Create: `src/crypto_signer/security/platform.py`
-- Create: `src/crypto_signer/security/platform_unix.py`
-- Create: `src/crypto_signer/security/platform_win.py`
+- Create: `src/vaultsign/security/platform.py`
+- Create: `src/vaultsign/security/platform_unix.py`
+- Create: `src/vaultsign/security/platform_win.py`
 - Create: `tests/test_platform.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -483,7 +483,7 @@ git commit -m "feat: add secure zeroization utilities"
 # tests/test_platform.py
 import sys
 
-from crypto_signer.security.platform import (
+from vaultsign.security.platform import (
     lock_memory,
     set_file_owner_only,
     harden_process,
@@ -538,7 +538,7 @@ Expected: FAIL (ImportError)
 - [ ] **Step 3: Write platform_unix.py**
 
 ```python
-# src/crypto_signer/security/platform_unix.py
+# src/vaultsign/security/platform_unix.py
 """Unix/macOS platform security implementations."""
 
 import ctypes
@@ -633,7 +633,7 @@ def get_peer_credentials(sock) -> int | None:
 - [ ] **Step 4: Write platform_win.py**
 
 ```python
-# src/crypto_signer/security/platform_win.py
+# src/vaultsign/security/platform_win.py
 """Windows platform security implementations."""
 
 import ctypes
@@ -721,7 +721,7 @@ def get_peer_credentials(sock) -> int | None:
 - [ ] **Step 5: Write platform.py dispatcher**
 
 ```python
-# src/crypto_signer/security/platform.py
+# src/vaultsign/security/platform.py
 """Platform detection and dispatch for security operations."""
 
 import sys
@@ -760,7 +760,7 @@ Expected: All 5 tests PASS
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/crypto_signer/security/platform*.py tests/test_platform.py
+git add src/vaultsign/security/platform*.py tests/test_platform.py
 git commit -m "feat: add cross-platform security abstraction"
 ```
 
@@ -769,13 +769,13 @@ git commit -m "feat: add cross-platform security abstraction"
 ### Task 5: Security — Harden & Safe Input
 
 **Files:**
-- Create: `src/crypto_signer/security/harden.py`
-- Create: `src/crypto_signer/security/safe_input.py`
+- Create: `src/vaultsign/security/harden.py`
+- Create: `src/vaultsign/security/safe_input.py`
 
 - [ ] **Step 1: Write harden.py**
 
 ```python
-# src/crypto_signer/security/harden.py
+# src/vaultsign/security/harden.py
 """High-level process hardening that delegates to platform module."""
 
 import logging
@@ -812,7 +812,7 @@ def lock_key_memory(buf: bytearray) -> bool:
 - [ ] **Step 2: Write safe_input.py**
 
 ```python
-# src/crypto_signer/security/safe_input.py
+# src/vaultsign/security/safe_input.py
 """Secure input utilities that return zeroizable bytearray."""
 
 import getpass
@@ -836,7 +836,7 @@ def secure_getpass(prompt: str = "Password: ") -> SecureByteArray:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/crypto_signer/security/harden.py src/crypto_signer/security/safe_input.py
+git add src/vaultsign/security/harden.py src/vaultsign/security/safe_input.py
 git commit -m "feat: add process hardening and secure input"
 ```
 
@@ -845,7 +845,7 @@ git commit -m "feat: add process hardening and secure input"
 ### Task 6: Configuration
 
 **Files:**
-- Create: `src/crypto_signer/config.py`
+- Create: `src/vaultsign/config.py`
 - Create: `tests/test_config.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -854,7 +854,7 @@ git commit -m "feat: add process hardening and secure input"
 # tests/test_config.py
 import os
 
-from crypto_signer.config import Config, DEFAULT_CONFIG
+from vaultsign.config import Config, DEFAULT_CONFIG
 
 
 def test_default_config():
@@ -889,7 +889,7 @@ def test_config_from_toml(tmp_path):
 
 def test_config_home_dir():
     c = Config()
-    assert c.home_dir.endswith(".crypto-signer")
+    assert c.home_dir.endswith(".vaultsign")
 
 
 def test_config_missing_file_uses_defaults():
@@ -905,8 +905,8 @@ Expected: FAIL (ImportError)
 - [ ] **Step 3: Write the implementation**
 
 ```python
-# src/crypto_signer/config.py
-"""Configuration loading for crypto-signer."""
+# src/vaultsign/config.py
+"""Configuration loading for vaultsign."""
 
 import os
 import sys
@@ -920,7 +920,7 @@ else:
 
 
 def _default_home() -> str:
-    return str(Path.home() / ".crypto-signer")
+    return str(Path.home() / ".vaultsign")
 
 
 DEFAULT_CONFIG = {
@@ -1020,7 +1020,7 @@ Expected: All 4 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/config.py tests/test_config.py
+git add src/vaultsign/config.py tests/test_config.py
 git commit -m "feat: add TOML configuration loading"
 ```
 
@@ -1031,7 +1031,7 @@ git commit -m "feat: add TOML configuration loading"
 ### Task 7: Keystore — Encrypt/Decrypt
 
 **Files:**
-- Create: `src/crypto_signer/keystore.py`
+- Create: `src/vaultsign/keystore.py`
 - Create: `tests/test_keystore.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1040,7 +1040,7 @@ git commit -m "feat: add TOML configuration loading"
 # tests/test_keystore.py
 import json
 
-from crypto_signer.keystore import Keystore, KeyEntry
+from vaultsign.keystore import Keystore, KeyEntry
 
 
 def test_add_key_and_save(tmp_path):
@@ -1099,7 +1099,7 @@ def test_decrypt_wrong_password(tmp_path):
     ks.save()
 
     import pytest
-    from crypto_signer.errors import InvalidPasswordError
+    from vaultsign.errors import InvalidPasswordError
 
     ks2 = Keystore.load(str(ks_path))
     with pytest.raises(InvalidPasswordError):
@@ -1165,7 +1165,7 @@ Expected: FAIL (ImportError)
 - [ ] **Step 3: Write the implementation**
 
 ```python
-# src/crypto_signer/keystore.py
+# src/vaultsign/keystore.py
 """Encrypted keystore management.
 
 Handles reading, writing, encrypting, and decrypting keystore.json.
@@ -1422,7 +1422,7 @@ Expected: All 6 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/keystore.py tests/test_keystore.py
+git add src/vaultsign/keystore.py tests/test_keystore.py
 git commit -m "feat: add encrypted keystore with Argon2id + AES-256-GCM"
 ```
 
@@ -1431,7 +1431,7 @@ git commit -m "feat: add encrypted keystore with Argon2id + AES-256-GCM"
 ### Task 8: EVM Signing Engine
 
 **Files:**
-- Create: `src/crypto_signer/crypto/evm.py`
+- Create: `src/vaultsign/crypto/evm.py`
 - Create: `tests/test_crypto_evm.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1440,7 +1440,7 @@ git commit -m "feat: add encrypted keystore with Argon2id + AES-256-GCM"
 # tests/test_crypto_evm.py
 import pytest
 
-from crypto_signer.crypto.evm import EVMSigner
+from vaultsign.crypto.evm import EVMSigner
 
 
 # Well-known test private key (DO NOT use in production)
@@ -1505,7 +1505,7 @@ Expected: FAIL (ImportError)
 - [ ] **Step 3: Write the implementation**
 
 ```python
-# src/crypto_signer/crypto/evm.py
+# src/vaultsign/crypto/evm.py
 """EVM signing engine using eth-account."""
 
 from eth_account import Account
@@ -1578,7 +1578,7 @@ Expected: All 4 tests PASS (sign_typed_data may need adjustment depending on eth
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/crypto/evm.py tests/test_crypto_evm.py
+git add src/vaultsign/crypto/evm.py tests/test_crypto_evm.py
 git commit -m "feat: add EVM signing engine"
 ```
 
@@ -1587,7 +1587,7 @@ git commit -m "feat: add EVM signing engine"
 ### Task 9: Solana Signing Engine
 
 **Files:**
-- Create: `src/crypto_signer/crypto/solana.py`
+- Create: `src/vaultsign/crypto/solana.py`
 - Create: `tests/test_crypto_solana.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1604,7 +1604,7 @@ from solders.system_program import transfer, TransferParams
 from solders.pubkey import Pubkey
 from solders.hash import Hash
 
-from crypto_signer.crypto.solana import SolanaSigner
+from vaultsign.crypto.solana import SolanaSigner
 
 
 @pytest.fixture
@@ -1662,7 +1662,7 @@ Expected: FAIL (ImportError)
 - [ ] **Step 3: Write the implementation**
 
 ```python
-# src/crypto_signer/crypto/solana.py
+# src/vaultsign/crypto/solana.py
 """Solana signing engine using solders."""
 
 import base64
@@ -1737,7 +1737,7 @@ Expected: All 3 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/crypto/solana.py tests/test_crypto_solana.py
+git add src/vaultsign/crypto/solana.py tests/test_crypto_solana.py
 git commit -m "feat: add Solana signing engine"
 ```
 
@@ -1748,7 +1748,7 @@ git commit -m "feat: add Solana signing engine"
 ### Task 10: State Machine
 
 **Files:**
-- Create: `src/crypto_signer/state.py`
+- Create: `src/vaultsign/state.py`
 - Create: `tests/test_state.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1757,8 +1757,8 @@ git commit -m "feat: add Solana signing engine"
 # tests/test_state.py
 import pytest
 
-from crypto_signer.state import SignerState, SignerStateMachine
-from crypto_signer.errors import SignerLockedError, SignerStateError
+from vaultsign.state import SignerState, SignerStateMachine
+from vaultsign.errors import SignerLockedError, SignerStateError
 
 
 def test_initial_state():
@@ -1834,7 +1834,7 @@ Expected: FAIL (ImportError)
 - [ ] **Step 3: Write the implementation**
 
 ```python
-# src/crypto_signer/state.py
+# src/vaultsign/state.py
 """Signer state machine.
 
 States: INIT -> LOCKED -> UNLOCKED -> STOPPED
@@ -1896,7 +1896,7 @@ Expected: All 9 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/state.py tests/test_state.py
+git add src/vaultsign/state.py tests/test_state.py
 git commit -m "feat: add signer state machine"
 ```
 
@@ -1905,7 +1905,7 @@ git commit -m "feat: add signer state machine"
 ### Task 11: IPC Server
 
 **Files:**
-- Create: `src/crypto_signer/server.py`
+- Create: `src/vaultsign/server.py`
 - Create: `tests/test_server.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1920,9 +1920,9 @@ import time
 
 import pytest
 
-from crypto_signer.server import SignerServer
-from crypto_signer.config import Config
-from crypto_signer.keystore import Keystore
+from vaultsign.server import SignerServer
+from vaultsign.config import Config
+from vaultsign.keystore import Keystore
 
 
 def _send_request(sock_path: str, request: dict) -> dict:
@@ -1945,7 +1945,7 @@ def _send_request(sock_path: str, request: dict) -> dict:
 @pytest.fixture
 def server_env(tmp_path):
     """Set up a keystore + config + server."""
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     ks_path = home / "keystore.json"
     sock_path = str(home / "signer.sock")
@@ -2089,7 +2089,7 @@ Expected: FAIL (ImportError)
 - [ ] **Step 3: Write the implementation**
 
 ```python
-# src/crypto_signer/server.py
+# src/vaultsign/server.py
 """Unix domain socket signing server."""
 
 import json
@@ -2410,7 +2410,7 @@ Expected: All 6 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/server.py tests/test_server.py
+git add src/vaultsign/server.py tests/test_server.py
 git commit -m "feat: add Unix socket signing server with state machine"
 ```
 
@@ -2421,7 +2421,7 @@ git commit -m "feat: add Unix socket signing server with state machine"
 ### Task 12: SignerClient
 
 **Files:**
-- Create: `src/crypto_signer/client.py`
+- Create: `src/vaultsign/client.py`
 - Create: `tests/test_client.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -2436,8 +2436,8 @@ import time
 
 import pytest
 
-from crypto_signer.client import SignerClient
-from crypto_signer.errors import SignerLockedError, SignerConnectionError
+from vaultsign.client import SignerClient
+from vaultsign.errors import SignerLockedError, SignerConnectionError
 
 
 @pytest.fixture
@@ -2556,8 +2556,8 @@ Expected: FAIL (ImportError)
 - [ ] **Step 3: Write the implementation**
 
 ```python
-# src/crypto_signer/client.py
-"""SignerClient — Python client for the crypto-signer daemon."""
+# src/vaultsign/client.py
+"""SignerClient — Python client for the vaultsign daemon."""
 
 import json
 import socket
@@ -2568,7 +2568,7 @@ from .errors import SignerError, SignerConnectionError
 
 
 def _default_socket_path() -> str:
-    return str(Path.home() / ".crypto-signer" / "signer.sock")
+    return str(Path.home() / ".vaultsign" / "signer.sock")
 
 
 class _ChainClient:
@@ -2596,7 +2596,7 @@ class _ChainClient:
 
 
 class SignerClient:
-    """Client for communicating with the crypto-signer daemon."""
+    """Client for communicating with the vaultsign daemon."""
 
     def __init__(self, socket_path: str | None = None):
         self._socket_path = socket_path or _default_socket_path()
@@ -2656,7 +2656,7 @@ Expected: All 7 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/client.py tests/test_client.py
+git add src/vaultsign/client.py tests/test_client.py
 git commit -m "feat: add SignerClient with chain-specific sub-clients"
 ```
 
@@ -2665,13 +2665,13 @@ git commit -m "feat: add SignerClient with chain-specific sub-clients"
 ### Task 13: Public API (__init__.py)
 
 **Files:**
-- Modify: `src/crypto_signer/__init__.py`
+- Modify: `src/vaultsign/__init__.py`
 
 - [ ] **Step 1: Write the public API**
 
 ```python
-# src/crypto_signer/__init__.py
-"""crypto-signer: Encrypted wallet + memory-resident signing service."""
+# src/vaultsign/__init__.py
+"""vaultsign: Encrypted wallet + memory-resident signing service."""
 
 from .client import SignerClient
 from .errors import (
@@ -2707,7 +2707,7 @@ __all__ = [
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/crypto_signer/__init__.py
+git add src/vaultsign/__init__.py
 git commit -m "feat: export public API from package"
 ```
 
@@ -2718,7 +2718,7 @@ git commit -m "feat: export public API from package"
 ### Task 14: CLI Commands
 
 **Files:**
-- Create: `src/crypto_signer/cli.py`
+- Create: `src/vaultsign/cli.py`
 - Create: `tests/test_cli.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -2730,7 +2730,7 @@ import json
 import pytest
 from click.testing import CliRunner
 
-from crypto_signer.cli import main
+from vaultsign.cli import main
 
 
 @pytest.fixture
@@ -2739,17 +2739,17 @@ def runner():
 
 
 def test_init_creates_directory(runner, tmp_path):
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     result = runner.invoke(main, ["init", "--home", home])
     assert result.exit_code == 0
-    assert (tmp_path / ".crypto-signer").exists()
-    assert (tmp_path / ".crypto-signer" / "config.toml").exists()
+    assert (tmp_path / ".vaultsign").exists()
+    assert (tmp_path / ".vaultsign" / "config.toml").exists()
 
 
 def test_list_empty(runner, tmp_path):
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     result = runner.invoke(main, ["list", "--home", home])
@@ -2758,9 +2758,9 @@ def test_list_empty(runner, tmp_path):
 
 
 def test_add_key_interactive(runner, tmp_path):
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     # Simulate interactive input: private key + password + confirm
@@ -2781,9 +2781,9 @@ def test_add_key_interactive(runner, tmp_path):
 
 
 def test_remove_key(runner, tmp_path):
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     # Add a key first
@@ -2810,8 +2810,8 @@ Expected: FAIL (ImportError)
 - [ ] **Step 3: Write the implementation**
 
 ```python
-# src/crypto_signer/cli.py
-"""CLI entry point for crypto-signer."""
+# src/vaultsign/cli.py
+"""CLI entry point for vaultsign."""
 
 import json
 import logging
@@ -2863,14 +2863,14 @@ _TYPE_MAP = {"evm": "secp256k1", "solana": "ed25519"}
 
 @click.group()
 def main():
-    """crypto-signer: Encrypted wallet + memory-resident signing service."""
+    """vaultsign: Encrypted wallet + memory-resident signing service."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
 @main.command()
 @click.option("--home", default=None, help="Override home directory")
 def init(home):
-    """Initialize ~/.crypto-signer/ directory."""
+    """Initialize ~/.vaultsign/ directory."""
     config = _get_config(home)
     os.makedirs(config.home_dir, exist_ok=True)
 
@@ -2880,7 +2880,7 @@ def init(home):
         with open(config_path, "w") as f:
             f.write(
                 "[signer]\n"
-                "# socket_path = \"~/.crypto-signer/signer.sock\"\n"
+                "# socket_path = \"~/.vaultsign/signer.sock\"\n"
                 "# unlock_timeout = 0\n"
                 "# disable_core_dump = true\n"
                 "# try_mlock = true\n"
@@ -2998,7 +2998,7 @@ def list_keys(home):
     try:
         ks = Keystore.load(config.keystore_path)
     except WalletFormatError:
-        click.echo("No keystore found. Run 'crypto-signer init' first.")
+        click.echo("No keystore found. Run 'vaultsign init' first.")
         return
 
     keys = ks.list_keys()
@@ -3097,7 +3097,7 @@ def _start_daemon_windows(server, config):
     The process stays alive because the server thread is non-daemon.
 
     Note: On Windows, -d mode will detach from the terminal but the process
-    remains in the task list. Use 'crypto-signer stop' to shut down.
+    remains in the task list. Use 'vaultsign stop' to shut down.
     """
     from .security.harden import apply_hardening
     apply_hardening()
@@ -3261,7 +3261,7 @@ Expected: All 4 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/cli.py tests/test_cli.py
+git add src/vaultsign/cli.py tests/test_cli.py
 git commit -m "feat: add CLI commands (init, add, list, remove, start, stop, lock, unlock)"
 ```
 
@@ -3272,7 +3272,7 @@ git commit -m "feat: add CLI commands (init, add, list, remove, start, stop, loc
 ### Task 15: Web3 Middleware
 
 **Files:**
-- Create: `src/crypto_signer/web3/middleware.py`
+- Create: `src/vaultsign/web3/middleware.py`
 - Create: `tests/test_web3_middleware.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -3281,7 +3281,7 @@ git commit -m "feat: add CLI commands (init, add, list, remove, start, stop, loc
 # tests/test_web3_middleware.py
 import pytest
 
-from crypto_signer.web3.middleware import SignerMiddleware
+from vaultsign.web3.middleware import SignerMiddleware
 
 
 def test_middleware_instantiates():
@@ -3310,18 +3310,18 @@ Expected: FAIL (ImportError)
 - [ ] **Step 3: Write the implementation**
 
 ```python
-# src/crypto_signer/web3/middleware.py
-"""web3.py middleware for automatic transaction signing via crypto-signer."""
+# src/vaultsign/web3/middleware.py
+"""web3.py middleware for automatic transaction signing via vaultsign."""
 
 from ..client import SignerClient
 
 
 class SignerMiddleware:
-    """web3.py middleware that signs transactions using the crypto-signer daemon.
+    """web3.py middleware that signs transactions using the vaultsign daemon.
 
     Usage:
         from web3 import Web3
-        from crypto_signer.web3 import SignerMiddleware
+        from vaultsign.web3 import SignerMiddleware
 
         w3 = Web3(Web3.HTTPProvider("https://..."))
         w3.middleware_onion.add(SignerMiddleware())
@@ -3358,7 +3358,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/web3/middleware.py tests/test_web3_middleware.py
+git add src/vaultsign/web3/middleware.py tests/test_web3_middleware.py
 git commit -m "feat: add web3.py signing middleware"
 ```
 
@@ -3383,11 +3383,11 @@ import time
 
 import pytest
 
-from crypto_signer.client import SignerClient
-from crypto_signer.config import Config
-from crypto_signer.keystore import Keystore
-from crypto_signer.server import SignerServer
-from crypto_signer.errors import SignerLockedError
+from vaultsign.client import SignerClient
+from vaultsign.config import Config
+from vaultsign.keystore import Keystore
+from vaultsign.server import SignerServer
+from vaultsign.errors import SignerLockedError
 
 
 TEST_EVM_KEY = bytes.fromhex(
@@ -3400,7 +3400,7 @@ TEST_PASSWORD = "integration_test_pw"
 @pytest.fixture
 def full_env(tmp_path):
     """Full integration environment: keystore + server + client."""
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     sock_path = str(home / "signer.sock")
 
@@ -3493,7 +3493,7 @@ def test_full_lifecycle(full_env):
 
 def test_wrong_password(full_env):
     server, client = full_env
-    from crypto_signer.errors import InvalidPasswordError
+    from vaultsign.errors import InvalidPasswordError
     with pytest.raises(InvalidPasswordError):
         client.unlock(password="wrong_password_12")
 
@@ -3527,7 +3527,7 @@ git commit -m "feat: add integration tests for full lifecycle"
 - [ ] **Step 1: Write README.md**
 
 ```markdown
-# crypto-signer
+# vaultsign
 
 Encrypted wallet + memory-resident signing service for Python crypto automation.
 
@@ -3541,20 +3541,20 @@ Encrypted wallet + memory-resident signing service for Python crypto automation.
 
 ## Quick Start
 
-pip install crypto-signer
+pip install vaultsign
 
 # Initialize
-crypto-signer init
+vaultsign init
 
 # Add a key
-crypto-signer add --name my-evm --type evm --key
+vaultsign add --name my-evm --type evm --key
 
 # Start the signing service
-crypto-signer start
+vaultsign start
 
 ## Usage in Python
 
-from crypto_signer import SignerClient
+from vaultsign import SignerClient
 
 signer = SignerClient()
 signed_tx = signer.evm.sign_transaction({

@@ -1,4 +1,4 @@
-# crypto-signer Design Spec
+# vaultsign Design Spec
 
 ## 1. Overview
 
@@ -53,27 +53,27 @@ Business scripts / cron scripts
        |
        |  sign_transaction() / sign_message()
        v
- crypto-signer-client (library)
+ vaultsign-client (library)
        |  Unix socket JSON protocol
        v
- crypto-signer (daemon)
+ vaultsign (daemon)
   +-- State machine: INIT -> LOCKED -> UNLOCKED -> ERROR -> STOPPED
   +-- EVM signing engine (secp256k1)
   +-- Solana signing engine (Ed25519)
   +-- Security module: mlock / zeroize / disable core dump
-  +-- Reads ~/.crypto-signer/keystore.json (encrypted)
+  +-- Reads ~/.vaultsign/keystore.json (encrypted)
 ```
 
 ### Components
 
-1. **crypto-signer daemon** — Core process, holds decrypted private keys in memory, serves signing requests via Unix socket
-2. **crypto-signer CLI** — Initialize encrypted keystore, manage service (start/stop/lock/unlock/status)
-3. **crypto-signer client library** — Python library that business scripts import to request signatures
+1. **vaultsign daemon** — Core process, holds decrypted private keys in memory, serves signing requests via Unix socket
+2. **vaultsign CLI** — Initialize encrypted keystore, manage service (start/stop/lock/unlock/status)
+3. **vaultsign client library** — Python library that business scripts import to request signatures
 4. **web3.py middleware** — Optional adapter for seamless web3.py integration
 
 ## 4. Encrypted Storage
 
-Single file: `~/.crypto-signer/keystore.json`
+Single file: `~/.vaultsign/keystore.json`
 
 All keys are encrypted with the **same password**. Each key has an independent salt and IV for cryptographic hygiene (unique derived encryption keys per entry), but users only need to enter one password to unlock all keys.
 
@@ -105,7 +105,7 @@ KDF parameters (`kdf`, `kdf_params`) are global. Per-key fields are `salt`, `iv`
 
 ### Key Selection
 
-v1 supports **one key per chain type**. If a keystore has one EVM key and one Solana key, chain type alone is sufficient to select the key. The `name` field is for human identification (display in `crypto-signer list`) and future multi-key-per-chain support. An optional `key_name` parameter is reserved in the IPC protocol for forward compatibility but is not required in v1.
+v1 supports **one key per chain type**. If a keystore has one EVM key and one Solana key, chain type alone is sufficient to select the key. The `name` field is for human identification (display in `vaultsign list`) and future multi-key-per-chain support. An optional `key_name` parameter is reserved in the IPC protocol for forward compatibility but is not required in v1.
 
 ### Encryption Flow
 
@@ -194,7 +194,7 @@ Future versions will introduce C/Rust extensions for:
 
 ## 7. IPC Protocol
 
-Unix domain socket at `~/.crypto-signer/signer.sock`.
+Unix domain socket at `~/.vaultsign/signer.sock`.
 
 ### Connection Model
 
@@ -266,9 +266,9 @@ The password is transmitted as a string in the client library API for ergonomics
 ## 8. Client Library API
 
 ```python
-from crypto_signer import SignerClient
+from vaultsign import SignerClient
 
-signer = SignerClient()  # default ~/.crypto-signer/signer.sock
+signer = SignerClient()  # default ~/.vaultsign/signer.sock
 signer = SignerClient(socket_path="/custom/path/signer.sock")
 
 # Service management
@@ -295,7 +295,7 @@ The client library translates chain-specific sub-object calls (e.g., `signer.evm
 
 ```python
 from web3 import Web3
-from crypto_signer.web3 import SignerMiddleware
+from vaultsign.web3 import SignerMiddleware
 
 w3 = Web3(Web3.HTTPProvider("https://..."))
 w3.middleware_onion.add(SignerMiddleware())
@@ -342,41 +342,41 @@ Non-fatal warnings (e.g., `mlock` unavailable, swap enabled) are logged but do n
 
 ```bash
 # Key management
-crypto-signer init                                              # Initialize ~/.crypto-signer/ directory
-crypto-signer add --name <name> --type <evm|solana> --key       # Import private key (interactive)
-crypto-signer add --name <name> --type <evm|solana> --mnemonic  # Import from mnemonic (interactive)
-crypto-signer list                                              # List stored keys (name, type, address)
-crypto-signer remove --name <name>                              # Remove a key
+vaultsign init                                              # Initialize ~/.vaultsign/ directory
+vaultsign add --name <name> --type <evm|solana> --key       # Import private key (interactive)
+vaultsign add --name <name> --type <evm|solana> --mnemonic  # Import from mnemonic (interactive)
+vaultsign list                                              # List stored keys (name, type, address)
+vaultsign remove --name <name>                              # Remove a key
 
 # Service management
-crypto-signer start                                             # Foreground start (for systemd/supervisor)
-crypto-signer start -d                                          # Background daemon mode (see below)
-crypto-signer stop                                              # Stop service
-crypto-signer status                                            # Show status
+vaultsign start                                             # Foreground start (for systemd/supervisor)
+vaultsign start -d                                          # Background daemon mode (see below)
+vaultsign stop                                              # Stop service
+vaultsign status                                            # Show status
 
 # Lock/unlock
-crypto-signer lock                                              # Lock signer (zeroize keys)
-crypto-signer unlock [--timeout <seconds>]                      # Unlock (interactive password)
+vaultsign lock                                              # Lock signer (zeroize keys)
+vaultsign unlock [--timeout <seconds>]                      # Unlock (interactive password)
 
 # Password management
-crypto-signer change-password                                   # Change encryption password
+vaultsign change-password                                   # Change encryption password
 ```
 
 ### Daemon Mode (-d)
 
-`crypto-signer start -d` prompts for the password interactively, decrypts and verifies all keys, then moves to background. On Linux/macOS this uses `fork()`. On Windows, it spawns a detached subprocess via `subprocess.Popen` with `CREATE_NO_WINDOW`/`DETACHED_PROCESS` flags. The signer enters UNLOCKED state before backgrounding. To re-lock, use `crypto-signer lock`. To re-unlock after locking, use `crypto-signer unlock` (which sends the password over the local socket).
+`vaultsign start -d` prompts for the password interactively, decrypts and verifies all keys, then moves to background. On Linux/macOS this uses `fork()`. On Windows, it spawns a detached subprocess via `subprocess.Popen` with `CREATE_NO_WINDOW`/`DETACHED_PROCESS` flags. The signer enters UNLOCKED state before backgrounding. To re-lock, use `vaultsign lock`. To re-unlock after locking, use `vaultsign unlock` (which sends the password over the local socket).
 
 ### Foreground Mode
 
-`crypto-signer start` (without `-d`) runs in the foreground and also prompts for the password at startup. This mode is intended for use with process managers like systemd or supervisor.
+`vaultsign start` (without `-d`) runs in the foreground and also prompts for the password at startup. This mode is intended for use with process managers like systemd or supervisor.
 
 ## 11. Configuration
 
-File: `~/.crypto-signer/config.toml`
+File: `~/.vaultsign/config.toml`
 
 ```toml
 [signer]
-socket_path = "~/.crypto-signer/signer.sock"
+socket_path = "~/.vaultsign/signer.sock"
 unlock_timeout = 0          # 0 = permanent unlock until lock/exit
 disable_core_dump = true
 try_mlock = true
@@ -391,12 +391,12 @@ max_unlock_attempts = 5
 ## 12. Package Structure
 
 ```
-crypto-signer/
+vaultsign/
 +-- pyproject.toml
 +-- README.md
 +-- SECURITY.md
 +-- src/
-|   +-- crypto_signer/
+|   +-- vaultsign/
 |       +-- __init__.py
 |       +-- cli.py                  # CLI entry point (click)
 |       +-- config.py               # Config loading (TOML)
@@ -487,9 +487,9 @@ When a platform feature is unavailable (e.g., `prctl` on Windows, `SO_PEERCRED` 
 
 ### Windows-Specific Notes
 
-- **Socket path**: Windows `AF_UNIX` sockets have a max path length of 108 bytes. The default `~/.crypto-signer/signer.sock` is well within this limit. For users with deeply nested home directories, the `socket_path` config option allows customization.
+- **Socket path**: Windows `AF_UNIX` sockets have a max path length of 108 bytes. The default `~/.vaultsign/signer.sock` is well within this limit. For users with deeply nested home directories, the `socket_path` config option allows customization.
 - **ACL management**: On Windows, `set_file_owner_only()` uses `icacls` to restrict the keystore file and socket to the current user. If `pywin32` is installed, native Win32 security APIs are used instead for more reliable ACL management. `pywin32` is an optional dependency.
-- **PID file**: On Windows, `-d` mode writes the child process PID to `~/.crypto-signer/signer.pid` for `crypto-signer stop` to use.
+- **PID file**: On Windows, `-d` mode writes the child process PID to `~/.vaultsign/signer.pid` for `vaultsign stop` to use.
 
 ## 16. Product Decisions
 

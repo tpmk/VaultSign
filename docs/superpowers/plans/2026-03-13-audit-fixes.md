@@ -1,4 +1,4 @@
-# Crypto-Signer Audit Fixes Implementation Plan
+# VaultSign Audit Fixes Implementation Plan
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -14,11 +14,11 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/crypto_signer/keystore.py` | Modify L238-263 | Wrap field access in `Keystore.load()` with try/except → `WalletFormatError` |
-| `src/crypto_signer/client.py` | Modify L86-113 | Wrap `json.loads` with error boundary; add TCP fallback from port/token files; include token in TCP requests |
-| `src/crypto_signer/config.py` | Modify | Add `port_path` and `token_path` properties |
-| `src/crypto_signer/server.py` | Modify L282-293, L336-341 | Write port/token files in TCP mode; validate token; clean up on shutdown |
-| `src/crypto_signer/cli.py` | Modify L147-177, L370-384 | Fix double zeroize; add explicit error for unsupported mnemonic type |
+| `src/vaultsign/keystore.py` | Modify L238-263 | Wrap field access in `Keystore.load()` with try/except → `WalletFormatError` |
+| `src/vaultsign/client.py` | Modify L86-113 | Wrap `json.loads` with error boundary; add TCP fallback from port/token files; include token in TCP requests |
+| `src/vaultsign/config.py` | Modify | Add `port_path` and `token_path` properties |
+| `src/vaultsign/server.py` | Modify L282-293, L336-341 | Write port/token files in TCP mode; validate token; clean up on shutdown |
+| `src/vaultsign/cli.py` | Modify L147-177, L370-384 | Fix double zeroize; add explicit error for unsupported mnemonic type |
 | `tests/test_keystore.py` | Modify | Add tests for corrupted keystore files |
 | `tests/test_client.py` | Modify | Add tests for bad server responses and TCP fallback |
 | `tests/test_server.py` | Modify | Add tests for TCP token auth |
@@ -30,7 +30,7 @@
 ### Task 1: Corrupted keystore → WalletFormatError (Issue 2)
 
 **Files:**
-- Modify: `src/crypto_signer/keystore.py:250-262`
+- Modify: `src/vaultsign/keystore.py:250-262`
 - Test: `tests/test_keystore.py`
 
 - [ ] **Step 1: Write failing tests for corrupted keystore**
@@ -39,8 +39,8 @@ Add to `tests/test_keystore.py`:
 
 ```python
 import pytest
-from crypto_signer.errors import WalletFormatError
-from crypto_signer.keystore import Keystore
+from vaultsign.errors import WalletFormatError
+from vaultsign.keystore import Keystore
 
 
 def test_load_keystore_missing_fields(tmp_path):
@@ -78,7 +78,7 @@ Expected: FAIL — raw `KeyError` / `binascii.Error` instead of `WalletFormatErr
 
 - [ ] **Step 3: Implement keystore validation**
 
-In `src/crypto_signer/keystore.py`, replace the bare field access in `Keystore.load()` (lines 251-262) with:
+In `src/vaultsign/keystore.py`, replace the bare field access in `Keystore.load()` (lines 251-262) with:
 
 ```python
         ks = cls(path)
@@ -110,7 +110,7 @@ Expected: All PASS (including existing tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/keystore.py tests/test_keystore.py
+git add src/vaultsign/keystore.py tests/test_keystore.py
 git commit -m "fix: wrap corrupted keystore errors in WalletFormatError"
 ```
 
@@ -119,7 +119,7 @@ git commit -m "fix: wrap corrupted keystore errors in WalletFormatError"
 ### Task 2: Client bad response → domain error (Issue 3)
 
 **Files:**
-- Modify: `src/crypto_signer/client.py:108`
+- Modify: `src/vaultsign/client.py:108`
 - Test: `tests/test_client.py`
 
 - [ ] **Step 1: Write failing tests for bad responses**
@@ -127,7 +127,7 @@ git commit -m "fix: wrap corrupted keystore errors in WalletFormatError"
 Add to `tests/test_client.py`:
 
 ```python
-from crypto_signer.errors import IPCProtocolError
+from vaultsign.errors import IPCProtocolError
 
 
 def test_non_json_response_raises_protocol_error(tmp_path):
@@ -220,7 +220,7 @@ Expected: FAIL — raw `JSONDecodeError` instead of `IPCProtocolError`.
 
 - [ ] **Step 3: Implement response error boundary**
 
-In `src/crypto_signer/client.py`, add `IPCProtocolError` to imports:
+In `src/vaultsign/client.py`, add `IPCProtocolError` to imports:
 
 ```python
 from .errors import SignerError, SignerConnectionError, IPCProtocolError
@@ -246,7 +246,7 @@ Expected: All PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/client.py tests/test_client.py
+git add src/vaultsign/client.py tests/test_client.py
 git commit -m "fix: wrap bad server responses in IPCProtocolError"
 ```
 
@@ -257,11 +257,11 @@ git commit -m "fix: wrap bad server responses in IPCProtocolError"
 ### Task 3: Config — add port_path and token_path (Issue 1+4)
 
 **Files:**
-- Modify: `src/crypto_signer/config.py`
+- Modify: `src/vaultsign/config.py`
 
 - [ ] **Step 1: Add properties to Config**
 
-In `src/crypto_signer/config.py`, add after `pid_path`:
+In `src/vaultsign/config.py`, add after `pid_path`:
 
 ```python
     @property
@@ -281,7 +281,7 @@ Expected: All PASS.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add src/crypto_signer/config.py
+git add src/vaultsign/config.py
 git commit -m "feat: add port_path and token_path to Config"
 ```
 
@@ -290,7 +290,7 @@ git commit -m "feat: add port_path and token_path to Config"
 ### Task 4: Server — TCP token auth + port/token file management (Issue 1+4)
 
 **Files:**
-- Modify: `src/crypto_signer/server.py:282-293, 336-341, 139-162`
+- Modify: `src/vaultsign/server.py:282-293, 336-341, 139-162`
 - Test: `tests/test_server.py`
 
 - [ ] **Step 1: Write failing test for TCP token auth**
@@ -305,7 +305,7 @@ def test_tcp_token_auth(server_env):
     server.load_keystore()
 
     # Force TCP mode
-    import crypto_signer.server as server_mod
+    import vaultsign.server as server_mod
     original = server_mod._HAS_AF_UNIX
     server_mod._HAS_AF_UNIX = False
     try:
@@ -344,7 +344,7 @@ Expected: FAIL — no token validation exists.
 
 - [ ] **Step 3: Implement TCP token auth and port/token file management**
 
-In `src/crypto_signer/server.py`:
+In `src/vaultsign/server.py`:
 
 Add import at top:
 
@@ -431,7 +431,7 @@ Expected: All PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/server.py
+git add src/vaultsign/server.py
 git commit -m "feat: add TCP token auth and port/token file management"
 ```
 
@@ -440,7 +440,7 @@ git commit -m "feat: add TCP token auth and port/token file management"
 ### Task 5: Client — TCP fallback from port/token files (Issue 1)
 
 **Files:**
-- Modify: `src/crypto_signer/client.py:49-66, 86-92`
+- Modify: `src/vaultsign/client.py:49-66, 86-92`
 - Test: `tests/test_client.py`
 
 - [ ] **Step 1: Write failing test for TCP fallback**
@@ -450,7 +450,7 @@ Add to `tests/test_client.py`:
 ```python
 def test_tcp_fallback_reads_port_and_token(tmp_path, mock_server):
     """When socket_path is set but AF_UNIX unavailable, client reads port/token files."""
-    import crypto_signer.client as client_mod
+    import vaultsign.client as client_mod
     original = client_mod._HAS_AF_UNIX
 
     address, set_response = mock_server
@@ -485,7 +485,7 @@ Expected: FAIL — client tries to connect with (None, None).
 
 - [ ] **Step 3: Implement TCP fallback in client**
 
-In `src/crypto_signer/client.py`, update `__init__`:
+In `src/vaultsign/client.py`, update `__init__`:
 
 ```python
     def __init__(
@@ -560,7 +560,7 @@ Expected: All PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/crypto_signer/client.py tests/test_client.py
+git add src/vaultsign/client.py tests/test_client.py
 git commit -m "feat: client reads port/token files for Windows TCP fallback"
 ```
 
@@ -571,11 +571,11 @@ git commit -m "feat: client reads port/token files for Windows TCP fallback"
 ### Task 6: Fix change-password double zeroize (Issue 5)
 
 **Files:**
-- Modify: `src/crypto_signer/cli.py:370-384`
+- Modify: `src/vaultsign/cli.py:370-384`
 
 - [ ] **Step 1: Fix the double zeroize**
 
-In `src/crypto_signer/cli.py`, replace the change_password error handling (lines 378-384):
+In `src/vaultsign/cli.py`, replace the change_password error handling (lines 378-384):
 
 ```python
     try:
@@ -591,7 +591,7 @@ This removes the redundant `zeroize(old_pass)` from the `except` block — the `
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/crypto_signer/cli.py
+git add src/vaultsign/cli.py
 git commit -m "fix: remove redundant zeroize in change-password"
 ```
 
@@ -600,11 +600,11 @@ git commit -m "fix: remove redundant zeroize in change-password"
 ### Task 7: Fix _derive_from_mnemonic missing return (Issue 6)
 
 **Files:**
-- Modify: `src/crypto_signer/cli.py:147-177`
+- Modify: `src/vaultsign/cli.py:147-177`
 
 - [ ] **Step 1: Add explicit error for unsupported type**
 
-In `src/crypto_signer/cli.py`, add at the end of `_derive_from_mnemonic`, after the `elif` block but before the `except`:
+In `src/vaultsign/cli.py`, add at the end of `_derive_from_mnemonic`, after the `elif` block but before the `except`:
 
 ```python
     else:
@@ -649,7 +649,7 @@ def _derive_from_mnemonic(mnemonic: str, key_type: str) -> bytearray:
 - [ ] **Step 2: Commit**
 
 ```bash
-git add src/crypto_signer/cli.py
+git add src/vaultsign/cli.py
 git commit -m "fix: add explicit error for unsupported mnemonic key type"
 ```
 

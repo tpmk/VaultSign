@@ -1,14 +1,14 @@
-"""web3.py middleware for automatic transaction signing via crypto-signer."""
+"""web3.py middleware for automatic transaction signing via VaultSign."""
 
 from ..client import SignerClient
 
 
 class SignerMiddleware:
-    """web3.py middleware that signs transactions using the crypto-signer daemon.
+    """web3.py middleware that signs transactions using the VaultSign daemon.
 
     Usage:
         from web3 import Web3
-        from crypto_signer.web3 import SignerMiddleware
+        from vaultsign.web3 import SignerMiddleware
 
         w3 = Web3(Web3.HTTPProvider("https://..."))
         w3.middleware_onion.add(SignerMiddleware())

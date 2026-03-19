@@ -1,8 +1,8 @@
 # tests/test_state.py
 import pytest
 
-from crypto_signer.state import SignerState, SignerStateMachine
-from crypto_signer.errors import SignerLockedError, SignerStateError
+from vaultsign.state import SignerState, SignerStateMachine
+from vaultsign.errors import SignerLockedError, SignerStateError
 
 
 def test_initial_state():

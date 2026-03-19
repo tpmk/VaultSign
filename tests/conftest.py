@@ -4,7 +4,7 @@ import pytest
 @pytest.fixture
 def tmp_home(tmp_path):
     """Provide a temporary home directory for tests."""
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     return home
 

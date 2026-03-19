@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 import pytest
 
-from crypto_signer.client import SignerClient, _MAX_RESPONSE
-from crypto_signer.errors import SignerLockedError, SignerConnectionError, IPCProtocolError
+from vaultsign.client import SignerClient, _MAX_RESPONSE
+from vaultsign.errors import SignerLockedError, SignerConnectionError, IPCProtocolError
 
 _HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
 
@@ -217,13 +217,13 @@ def test_get_key_returns_decoded_string():
 
 def test_default_client_reads_discovery_files_on_windows(tmp_path):
     """SignerClient() with no args on Windows should read signer.port/signer.token."""
-    home_dir = tmp_path / ".crypto-signer"
+    home_dir = tmp_path / ".vaultsign"
     home_dir.mkdir()
     (home_dir / "signer.port").write_text("54321")
     (home_dir / "signer.token").write_text("test-token-abc")
 
-    with patch("crypto_signer.client._HAS_AF_UNIX", False), \
-         patch("crypto_signer.client._default_socket_path",
+    with patch("vaultsign.client._HAS_AF_UNIX", False), \
+         patch("vaultsign.client._default_socket_path",
                return_value=str(home_dir / "signer.sock")):
         client = SignerClient()
 
@@ -235,11 +235,11 @@ def test_default_client_reads_discovery_files_on_windows(tmp_path):
 
 def test_default_client_raises_when_no_discovery_files(tmp_path):
     """SignerClient() on Windows should fail-fast if discovery files don't exist."""
-    home_dir = tmp_path / ".crypto-signer"
+    home_dir = tmp_path / ".vaultsign"
     home_dir.mkdir()
 
-    with patch("crypto_signer.client._HAS_AF_UNIX", False), \
-         patch("crypto_signer.client._default_socket_path",
+    with patch("vaultsign.client._HAS_AF_UNIX", False), \
+         patch("vaultsign.client._default_socket_path",
                return_value=str(home_dir / "signer.sock")):
         with pytest.raises(SignerConnectionError, match="port file"):
             SignerClient()

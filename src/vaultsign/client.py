@@ -1,4 +1,4 @@
-"""SignerClient — Python client for the crypto-signer daemon."""
+"""SignerClient — Python client for the VaultSign daemon."""
 
 import base64
 import json
@@ -13,7 +13,7 @@ _MAX_RESPONSE = 1048576  # 1 MB, matches server _MAX_MSG
 
 
 def _default_socket_path() -> str:
-    return str(Path.home() / ".crypto-signer" / "signer.sock")
+    return str(Path.home() / ".vaultsign" / "signer.sock")
 
 
 class _ChainClient:
@@ -41,7 +41,7 @@ class _ChainClient:
 
 
 class SignerClient:
-    """Client for communicating with the crypto-signer daemon.
+    """Client for communicating with the VaultSign daemon.
 
     Supports both Unix domain sockets and TCP connections.
     - On Unix: pass socket_path

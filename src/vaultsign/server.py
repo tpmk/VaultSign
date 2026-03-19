@@ -1,4 +1,4 @@
-# src/crypto_signer/server.py
+# src/vaultsign/server.py
 """IPC signing server.
 
 Uses Unix domain sockets on Linux/macOS and TCP localhost on Windows.

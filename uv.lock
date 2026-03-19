@@ -579,7 +579,7 @@ wheels = [
 ]
 
 [[package]]
-name = "crypto-signer"
+name = "vaultsign"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

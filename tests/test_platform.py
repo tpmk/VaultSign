@@ -6,7 +6,7 @@ import sys
 import pytest
 from unittest.mock import patch
 
-from crypto_signer.security.platform import (
+from vaultsign.security.platform import (
     lock_memory, set_file_owner_only, harden_process, get_peer_credentials, PLATFORM,
 )
 
@@ -52,7 +52,7 @@ def test_set_file_owner_only_icacls_warns_on_failure(tmp_path, caplog):
     if sys.platform != "win32":
         pytest.skip("Windows-only test")
 
-    from crypto_signer.security.platform_win import set_file_owner_only
+    from vaultsign.security.platform_win import set_file_owner_only
 
     f = tmp_path / "test.txt"
     f.write_text("data")
@@ -60,7 +60,7 @@ def test_set_file_owner_only_icacls_warns_on_failure(tmp_path, caplog):
     # patch.dict sets sys.modules entries to None, causing ImportError on
     # `import win32api` inside the function body — no reload needed.
     with patch.dict("sys.modules", {"win32api": None, "win32security": None, "ntsecuritycon": None}), \
-         patch("crypto_signer.security.platform_win.subprocess.run") as mock_run, \
+         patch("vaultsign.security.platform_win.subprocess.run") as mock_run, \
          caplog.at_level(logging.WARNING):
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=1, stderr=b"access denied",
@@ -75,7 +75,7 @@ def test_set_file_owner_only_warns_missing_username(tmp_path, caplog):
     if sys.platform != "win32":
         pytest.skip("Windows-only test")
 
-    from crypto_signer.security.platform_win import set_file_owner_only
+    from vaultsign.security.platform_win import set_file_owner_only
 
     f = tmp_path / "test.txt"
     f.write_text("data")
@@ -94,7 +94,7 @@ def test_lock_memory_sets_virtuallock_argtypes():
         pytest.skip("Windows-only test")
 
     import ctypes
-    from crypto_signer.security.platform_win import lock_memory
+    from vaultsign.security.platform_win import lock_memory
 
     buf = bytearray(64)
     lock_memory(buf)

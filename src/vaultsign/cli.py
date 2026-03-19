@@ -1,4 +1,4 @@
-"""CLI entry point for crypto-signer."""
+"""CLI entry point for VaultSign."""
 
 import json
 import logging
@@ -59,25 +59,25 @@ def _check_stale_pid(config: Config) -> None:
         os.kill(pid, 0)
     except PermissionError:
         # Process exists but inaccessible — treat as alive
-        raise click.ClickException(f"Signer already running (PID {pid})")
+        raise click.ClickException(f"VaultSign already running (PID {pid})")
     except OSError:
         # Process does not exist — clean up stale PID file
         os.unlink(config.pid_path)
         return
     # os.kill succeeded — process is alive
-    raise click.ClickException(f"Signer already running (PID {pid})")
+    raise click.ClickException(f"VaultSign already running (PID {pid})")
 
 
 @click.group()
 def main():
-    """crypto-signer: Encrypted wallet + memory-resident signing service."""
+    """VaultSign: encrypted key vault and memory-resident signing service."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
 @main.command()
 @click.option("--home", default=None, help="Override home directory")
 def init(home):
-    """Initialize ~/.crypto-signer/ directory."""
+    """Initialize ~/.vaultsign/ directory."""
     config = _get_config(home)
     os.makedirs(config.home_dir, exist_ok=True)
 
@@ -87,7 +87,7 @@ def init(home):
         with open(config_path, "w") as f:
             f.write(
                 "[signer]\n"
-                "# socket_path = \"~/.crypto-signer/signer.sock\"\n"
+                "# socket_path = \"~/.vaultsign/signer.sock\"\n"
                 "# unlock_timeout = 0\n"
                 "# disable_core_dump = true\n"
                 "# try_mlock = true\n"
@@ -217,7 +217,7 @@ def list_keys(home):
     try:
         ks = Keystore.load(config.keystore_path)
     except WalletFormatError:
-        click.echo("No keystore found. Run 'crypto-signer init' first.")
+        click.echo("No keystore found. Run 'vaultsign init' first.")
         return
 
     keys = ks.list_keys()
@@ -248,7 +248,7 @@ def remove(name, home):
 @click.option("-d", "daemon", is_flag=True, help="Run in background")
 @click.option("--home", default=None, help="Override home directory")
 def start(daemon, home):
-    """Start the signing service."""
+    """Start the VaultSign service."""
     from .server import SignerServer
     from .security.harden import apply_hardening
 
@@ -274,7 +274,7 @@ def start(daemon, home):
     except Exception as e:
         raise click.ClickException(str(e))
 
-    click.echo("Signer unlocked and ready.")
+    click.echo("VaultSign unlocked and ready.")
 
     if daemon:
         _start_daemon_unix(server, config)
@@ -324,7 +324,7 @@ def _start_daemon_unix(server, config):
 
 def _start_daemon_windows(password_str: str, config: Config):
     """Spawn a detached child process to run the signer daemon on Windows."""
-    cmd = [sys.executable, "-m", "crypto_signer", "_serve", "--home", config.home_dir]
+    cmd = [sys.executable, "-m", "vaultsign", "_serve", "--home", config.home_dir]
 
     # CREATE_NO_WINDOW=0x08000000 | DETACHED_PROCESS=0x00000008
     creation_flags = (0x08000000 | 0x00000008) if sys.platform == "win32" else 0
@@ -390,7 +390,7 @@ def _start_daemon_windows(password_str: str, config: Config):
 @main.command()
 @click.option("--home", default=None, help="Override home directory")
 def stop(home):
-    """Stop the signing service."""
+    """Stop the VaultSign service."""
     from .client import SignerClient
     config = _get_config(home)
     try:
@@ -398,7 +398,7 @@ def stop(home):
         client._send("shutdown")
         if os.path.exists(config.pid_path):
             os.unlink(config.pid_path)
-        click.echo("Signer stopped.")
+        click.echo("VaultSign stopped.")
     except Exception as e:
         if os.path.exists(config.pid_path):
             with open(config.pid_path) as f:
@@ -416,7 +416,7 @@ def stop(home):
 @main.command()
 @click.option("--home", default=None, help="Override home directory")
 def status(home):
-    """Show service status."""
+    """Show VaultSign service status."""
     from .client import SignerClient
     config = _get_config(home)
     try:
@@ -434,14 +434,14 @@ def status(home):
 @click.option("--timeout", default=0, help="Auto-lock timeout in seconds (0=permanent)")
 @click.option("--home", default=None, help="Override home directory")
 def unlock(timeout, home):
-    """Unlock the signing service."""
+    """Unlock the VaultSign service."""
     from .client import SignerClient
     config = _get_config(home)
     password = click.prompt("Enter password", hide_input=True)
     try:
         client = SignerClient(socket_path=config.socket_path)
         client.unlock(password=password, timeout=timeout)
-        click.echo("Signer unlocked.")
+        click.echo("VaultSign unlocked.")
     except Exception as e:
         raise click.ClickException(str(e))
 
@@ -449,13 +449,13 @@ def unlock(timeout, home):
 @main.command()
 @click.option("--home", default=None, help="Override home directory")
 def lock(home):
-    """Lock the signing service."""
+    """Lock the VaultSign service."""
     from .client import SignerClient
     config = _get_config(home)
     try:
         client = SignerClient(socket_path=config.socket_path)
         client.lock()
-        click.echo("Signer locked.")
+        click.echo("VaultSign locked.")
     except Exception as e:
         raise click.ClickException(str(e))
 

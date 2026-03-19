@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from crypto_signer.errors import WalletFormatError
-from crypto_signer.keystore import Keystore, KeyEntry
+from vaultsign.errors import WalletFormatError
+from vaultsign.keystore import Keystore, KeyEntry
 
 
 def test_add_key_and_save(tmp_path):
@@ -63,7 +63,7 @@ def test_decrypt_wrong_password(tmp_path):
     ks.save()
 
     import pytest
-    from crypto_signer.errors import InvalidPasswordError
+    from vaultsign.errors import InvalidPasswordError
 
     ks2 = Keystore.load(str(ks_path))
     with pytest.raises(InvalidPasswordError):

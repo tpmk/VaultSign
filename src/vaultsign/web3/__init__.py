@@ -1,4 +1,4 @@
-"""web3.py integration for crypto-signer."""
+"""web3.py integration for VaultSign."""
 
 from .middleware import SignerMiddleware
 

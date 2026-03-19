@@ -14,12 +14,12 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `src/crypto_signer/crypto/solana.py` | Delete | Solana signing engine |
+| `src/vaultsign/crypto/solana.py` | Delete | Solana signing engine |
 | `tests/test_crypto_solana.py` | Delete | Solana signing tests |
-| `src/crypto_signer/server.py` | Modify L27, L46, L102-103, L122-124, L227-230, L238-245 | Remove SolanaSigner import, `_solana` attr, load/zeroize/dispatch, simplify `_handle_sign_transaction` |
-| `src/crypto_signer/client.py` | Modify L18, L72 | Remove `_ChainClient` docstring Solana ref, remove `self.solana` |
-| `src/crypto_signer/keystore.py` | Modify L112-120, L141 | Remove ed25519 branch in `_derive_address_from_key`, remove from `chain_types` |
-| `src/crypto_signer/cli.py` | Modify L39-44, L48, L92, L147-181, L201 | Remove Solana from `_derive_address`, `_TYPE_MAP`, `click.Choice`, `_derive_from_mnemonic`, `list_keys` |
+| `src/vaultsign/server.py` | Modify L27, L46, L102-103, L122-124, L227-230, L238-245 | Remove SolanaSigner import, `_solana` attr, load/zeroize/dispatch, simplify `_handle_sign_transaction` |
+| `src/vaultsign/client.py` | Modify L18, L72 | Remove `_ChainClient` docstring Solana ref, remove `self.solana` |
+| `src/vaultsign/keystore.py` | Modify L112-120, L141 | Remove ed25519 branch in `_derive_address_from_key`, remove from `chain_types` |
+| `src/vaultsign/cli.py` | Modify L39-44, L48, L92, L147-181, L201 | Remove Solana from `_derive_address`, `_TYPE_MAP`, `click.Choice`, `_derive_from_mnemonic`, `list_keys` |
 | `tests/test_client.py` | Modify L122-127 | Remove `test_solana_get_address` |
 | `tests/test_integration.py` | No changes needed | Already EVM-only |
 | `pyproject.toml` | Modify L17-20, L23-29, L41-45 | Remove solders/bip-utils deps, fix tomli dup, unify dev deps |
@@ -33,11 +33,11 @@
 ### Task 1: Remove Solana from server.py
 
 **Files:**
-- Modify: `src/crypto_signer/server.py:27, 46, 102-103, 122-124, 227-230`
+- Modify: `src/vaultsign/server.py:27, 46, 102-103, 122-124, 227-230`
 
 - [ ] **Step 1: Remove SolanaSigner import and `_solana` attribute**
 
-In `src/crypto_signer/server.py`, delete line 27:
+In `src/vaultsign/server.py`, delete line 27:
 
 ```python
 from .crypto.solana import SolanaSigner
@@ -122,7 +122,7 @@ Expected: All PASS. No tests relied on Solana-specific server paths.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/crypto_signer/server.py
+git add src/vaultsign/server.py
 git commit -m "refactor: remove Solana support from server"
 ```
 
@@ -131,12 +131,12 @@ git commit -m "refactor: remove Solana support from server"
 ### Task 2: Remove Solana from client.py
 
 **Files:**
-- Modify: `src/crypto_signer/client.py:18, 72`
+- Modify: `src/vaultsign/client.py:18, 72`
 - Modify: `tests/test_client.py:122-127`
 
 - [ ] **Step 1: Update `_ChainClient` docstring and remove `self.solana`**
 
-In `src/crypto_signer/client.py`, replace line 18:
+In `src/vaultsign/client.py`, replace line 18:
 
 ```python
     """Chain-specific sub-client (evm or solana)."""
@@ -175,7 +175,7 @@ Expected: All PASS (8 tests remaining after removing 1).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/crypto_signer/client.py tests/test_client.py
+git add src/vaultsign/client.py tests/test_client.py
 git commit -m "refactor: remove Solana support from client"
 ```
 
@@ -184,11 +184,11 @@ git commit -m "refactor: remove Solana support from client"
 ### Task 3: Remove Solana from keystore.py
 
 **Files:**
-- Modify: `src/crypto_signer/keystore.py:112-120, 141`
+- Modify: `src/vaultsign/keystore.py:112-120, 141`
 
 - [ ] **Step 1: Remove ed25519 branch in `_derive_address_from_key`**
 
-In `src/crypto_signer/keystore.py`, replace lines 112-120:
+In `src/vaultsign/keystore.py`, replace lines 112-120:
 
 ```python
     elif key_type == "ed25519":
@@ -226,7 +226,7 @@ Expected: All PASS.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/crypto_signer/keystore.py
+git add src/vaultsign/keystore.py
 git commit -m "refactor: remove Solana support from keystore"
 ```
 
@@ -235,11 +235,11 @@ git commit -m "refactor: remove Solana support from keystore"
 ### Task 4: Remove Solana from cli.py
 
 **Files:**
-- Modify: `src/crypto_signer/cli.py:39-44, 48, 92, 147-181, 201`
+- Modify: `src/vaultsign/cli.py:39-44, 48, 92, 147-181, 201`
 
 - [ ] **Step 1: Remove Solana branch from `_derive_address`**
 
-In `src/crypto_signer/cli.py`, replace lines 39-44:
+In `src/vaultsign/cli.py`, replace lines 39-44:
 
 ```python
     elif key_type in ("solana", "ed25519"):
@@ -331,7 +331,7 @@ Expected: All PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/crypto_signer/cli.py
+git add src/vaultsign/cli.py
 git commit -m "refactor: remove Solana support from CLI"
 ```
 
@@ -340,13 +340,13 @@ git commit -m "refactor: remove Solana support from CLI"
 ### Task 5: Delete Solana files
 
 **Files:**
-- Delete: `src/crypto_signer/crypto/solana.py`
+- Delete: `src/vaultsign/crypto/solana.py`
 - Delete: `tests/test_crypto_solana.py`
 
 - [ ] **Step 1: Delete files**
 
 ```bash
-git rm src/crypto_signer/crypto/solana.py tests/test_crypto_solana.py
+git rm src/vaultsign/crypto/solana.py tests/test_crypto_solana.py
 ```
 
 - [ ] **Step 2: Verify no Solana references remain in source code**
@@ -487,7 +487,7 @@ git commit -m "chore: remove Solana deps, fix duplicate tomli, unify dev deps, a
 Replace the entire `README.md` with:
 
 ```markdown
-# crypto-signer
+# vaultsign
 
 Encrypted wallet + memory-resident signing service for Python crypto automation.
 
@@ -505,19 +505,19 @@ Encrypted wallet + memory-resident signing service for Python crypto automation.
 uv sync
 
 # Initialize
-uv run crypto-signer init
+uv run vaultsign init
 
 # Add a key
-uv run crypto-signer add --name my-evm --type evm --key
+uv run vaultsign add --name my-evm --type evm --key
 
 # Start the signing service
-uv run crypto-signer start
+uv run vaultsign start
 ```
 
 ## Usage in Python
 
 ```python
-from crypto_signer import SignerClient
+from vaultsign import SignerClient
 
 signer = SignerClient()
 signed_tx = signer.evm.sign_transaction({

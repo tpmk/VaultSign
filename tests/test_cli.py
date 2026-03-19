@@ -10,7 +10,7 @@ import pytest
 from click.testing import CliRunner
 from unittest.mock import patch
 
-from crypto_signer.cli import main
+from vaultsign.cli import main
 
 
 @pytest.fixture
@@ -19,17 +19,17 @@ def runner():
 
 
 def test_init_creates_directory(runner, tmp_path):
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     result = runner.invoke(main, ["init", "--home", home])
     assert result.exit_code == 0
-    assert (tmp_path / ".crypto-signer").exists()
-    assert (tmp_path / ".crypto-signer" / "config.toml").exists()
+    assert (tmp_path / ".vaultsign").exists()
+    assert (tmp_path / ".vaultsign" / "config.toml").exists()
 
 
 def test_list_empty(runner, tmp_path):
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     result = runner.invoke(main, ["list", "--home", home])
@@ -38,9 +38,9 @@ def test_list_empty(runner, tmp_path):
 
 
 def test_add_key_interactive(runner, tmp_path):
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     # Simulate interactive input: private key + password + confirm
@@ -61,9 +61,9 @@ def test_add_key_interactive(runner, tmp_path):
 
 
 def test_remove_key(runner, tmp_path):
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     # Add a key first
@@ -82,12 +82,12 @@ def test_remove_key(runner, tmp_path):
     assert len(data["keys"]) == 0
 
 
-from crypto_signer.cli import _check_stale_pid
+from vaultsign.cli import _check_stale_pid
 
 
 def test_check_stale_pid_cleans_dead_process(tmp_path):
     """Stale PID file (dead process) should be cleaned up."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     pid_file = os.path.join(home, "signer.pid")
 
@@ -95,10 +95,10 @@ def test_check_stale_pid_cleans_dead_process(tmp_path):
     with open(pid_file, "w") as f:
         f.write("99999999")
 
-    from crypto_signer.config import Config
+    from vaultsign.config import Config
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.os.kill", side_effect=OSError("No such process")):
+    with patch("vaultsign.cli.os.kill", side_effect=OSError("No such process")):
         _check_stale_pid(config)
 
     assert not os.path.exists(pid_file)
@@ -106,43 +106,43 @@ def test_check_stale_pid_cleans_dead_process(tmp_path):
 
 def test_check_stale_pid_aborts_if_alive(tmp_path):
     """If PID is alive, should raise ClickException."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     pid_file = os.path.join(home, "signer.pid")
 
     with open(pid_file, "w") as f:
         f.write("12345")
 
-    from crypto_signer.config import Config
+    from vaultsign.config import Config
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.os.kill", return_value=None):  # process exists
+    with patch("vaultsign.cli.os.kill", return_value=None):  # process exists
         with pytest.raises(click.ClickException, match="already running"):
             _check_stale_pid(config)
 
 
 def test_check_stale_pid_treats_permission_error_as_alive(tmp_path):
     """PermissionError means process exists but inaccessible — treat as alive."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     pid_file = os.path.join(home, "signer.pid")
 
     with open(pid_file, "w") as f:
         f.write("12345")
 
-    from crypto_signer.config import Config
+    from vaultsign.config import Config
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.os.kill", side_effect=PermissionError("Access denied")):
+    with patch("vaultsign.cli.os.kill", side_effect=PermissionError("Access denied")):
         with pytest.raises(click.ClickException, match="already running"):
             _check_stale_pid(config)
 
 
 def test_add_key_auto_detect_evm(runner, tmp_path):
     """add --key without --type auto-detects secp256k1."""
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     test_key = "4c0883a69102937d6231471b5dbb6204fe512961708279f15b0d7e4b2cd53f37"
@@ -162,9 +162,9 @@ def test_add_key_auto_detect_evm(runner, tmp_path):
 
 def test_add_key_auto_detect_opaque(runner, tmp_path):
     """add --key without --type falls back to opaque for non-EVM keys."""
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     input_text = "this-is-a-lighter-api-key-not-hex\ntestpass1234\ntestpass1234\n"
@@ -183,9 +183,9 @@ def test_add_key_auto_detect_opaque(runner, tmp_path):
 
 def test_add_key_explicit_opaque(runner, tmp_path):
     """add --type opaque skips auto-detection."""
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     test_key = "4c0883a69102937d6231471b5dbb6204fe512961708279f15b0d7e4b2cd53f37"
@@ -204,9 +204,9 @@ def test_add_key_explicit_opaque(runner, tmp_path):
 
 def test_list_shows_opaque_key(runner, tmp_path):
     """list command shows opaque keys with (none) for address."""
-    home = str(tmp_path / ".crypto-signer")
-    (tmp_path / ".crypto-signer").mkdir()
-    ks_path = tmp_path / ".crypto-signer" / "keystore.json"
+    home = str(tmp_path / ".vaultsign")
+    (tmp_path / ".vaultsign").mkdir()
+    ks_path = tmp_path / ".vaultsign" / "keystore.json"
     ks_path.write_text(json.dumps({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}))
 
     # Add opaque key
@@ -230,11 +230,11 @@ def test_exec_injects_env_vars(runner, tmp_path):
     import socket
     import threading
     import time
-    from crypto_signer.config import Config
-    from crypto_signer.keystore import Keystore
-    from crypto_signer.server import SignerServer
+    from vaultsign.config import Config
+    from vaultsign.keystore import Keystore
+    from vaultsign.server import SignerServer
 
-    home = tmp_path / ".crypto-signer"
+    home = tmp_path / ".vaultsign"
     home.mkdir()
     sock_path = str(home / "signer.sock")
 
@@ -291,11 +291,11 @@ def test_exec_injects_env_vars(runner, tmp_path):
 
 def test_start_daemon_unix_cleanup(tmp_path):
     """Unix daemon child should clean PID file on signal."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     pid_file = os.path.join(home, "signer.pid")
 
-    from crypto_signer.config import Config
+    from vaultsign.config import Config
     config = Config(home_dir=home)
 
     # Write a PID file as the parent would
@@ -303,7 +303,7 @@ def test_start_daemon_unix_cleanup(tmp_path):
         f.write(str(os.getpid()))
 
     # Verify our signal handler cleans up
-    from crypto_signer.cli import _daemon_cleanup_handler
+    from vaultsign.cli import _daemon_cleanup_handler
     handler = _daemon_cleanup_handler(config, None)
     handler(signal.SIGTERM, None)
 
@@ -312,18 +312,18 @@ def test_start_daemon_unix_cleanup(tmp_path):
 
 def test_start_daemon_windows_spawns_subprocess(tmp_path):
     """Windows daemon should spawn a subprocess, not block on thread.join()."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     ks_path = os.path.join(home, "keystore.json")
     with open(ks_path, "w") as f:
         json.dump({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}, f)
 
-    from crypto_signer.cli import _start_daemon_windows
-    from crypto_signer.config import Config
+    from vaultsign.cli import _start_daemon_windows
+    from vaultsign.config import Config
 
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.subprocess.Popen") as mock_popen:
+    with patch("vaultsign.cli.subprocess.Popen") as mock_popen:
         mock_proc = mock_popen.return_value
         mock_proc.stdout.readline.return_value = json.dumps(
             {"status": "ready", "pid": 12345}
@@ -340,18 +340,18 @@ def test_start_daemon_windows_spawns_subprocess(tmp_path):
 
 def test_start_daemon_windows_reports_child_error(tmp_path):
     """If child reports error, parent should raise ClickException."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     ks_path = os.path.join(home, "keystore.json")
     with open(ks_path, "w") as f:
         json.dump({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}, f)
 
-    from crypto_signer.cli import _start_daemon_windows
-    from crypto_signer.config import Config
+    from vaultsign.cli import _start_daemon_windows
+    from vaultsign.config import Config
 
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.subprocess.Popen") as mock_popen:
+    with patch("vaultsign.cli.subprocess.Popen") as mock_popen:
         mock_proc = mock_popen.return_value
         mock_proc.stdout.readline.return_value = json.dumps(
             {"status": "error", "message": "bad password"}
@@ -364,19 +364,19 @@ def test_start_daemon_windows_reports_child_error(tmp_path):
 
 def test_start_daemon_windows_handles_timeout(tmp_path):
     """If child doesn't respond within timeout, parent should report error."""
-    home = str(tmp_path / ".crypto-signer")
+    home = str(tmp_path / ".vaultsign")
     os.makedirs(home, exist_ok=True)
     ks_path = os.path.join(home, "keystore.json")
     with open(ks_path, "w") as f:
         json.dump({"version": 1, "kdf": "argon2id", "kdf_params": {}, "keys": []}, f)
 
-    from crypto_signer.cli import _start_daemon_windows
-    from crypto_signer.config import Config
+    from vaultsign.cli import _start_daemon_windows
+    from vaultsign.config import Config
 
     config = Config(home_dir=home)
 
-    with patch("crypto_signer.cli.subprocess.Popen") as mock_popen, \
-         patch("crypto_signer.cli._DAEMON_READY_TIMEOUT", 0.1):
+    with patch("vaultsign.cli.subprocess.Popen") as mock_popen, \
+         patch("vaultsign.cli._DAEMON_READY_TIMEOUT", 0.1):
         mock_proc = mock_popen.return_value
         # Simulate a hanging child: readline blocks, so the Thread.join
         # times out and is_alive() returns True.
