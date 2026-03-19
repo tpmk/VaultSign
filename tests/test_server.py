@@ -398,6 +398,55 @@ def test_get_key_rate_limited(tmp_path):
         server.shutdown()
 
 
+def test_params_as_string_returns_protocol_error(running_server):
+    """params must be a dict; a string should return IPCProtocolError."""
+    server, address, token = running_server
+    resp = _send_request(address, {
+        "version": 1, "id": "v1", "method": "ping", "params": "not-a-dict"
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+    assert "params must be an object" in resp["error"]["message"]
+
+
+def test_params_as_list_returns_protocol_error(running_server):
+    """params as a list should return IPCProtocolError."""
+    server, address, token = running_server
+    resp = _send_request(address, {
+        "version": 1, "id": "v2", "method": "ping", "params": [1, 2, 3]
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+
+
+def test_params_as_null_returns_protocol_error(running_server):
+    """params as null should return IPCProtocolError."""
+    server, address, token = running_server
+    resp = _send_request(address, {
+        "version": 1, "id": "v3", "method": "ping", "params": None
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+
+
+def test_unexpected_exception_returns_internal_error(running_server):
+    """Unexpected handler exceptions should return 'Internal error'."""
+    server, address, token = running_server
+    original = server._handle_ping
+    def bad_handler(params):
+        raise RuntimeError("something went wrong")
+    server._handle_ping = bad_handler
+    try:
+        resp = _send_request(address, {
+            "version": 1, "id": "ie1", "method": "ping", "params": {}
+        }, token=token)
+        assert "error" in resp
+        assert resp["error"]["code"] == 1008
+        assert "Internal error" in resp["error"]["message"]
+    finally:
+        server._handle_ping = original
+
+
 def test_tcp_token_auth(server_env):
     """TCP mode requires a valid token; requests without it are rejected."""
     config, ks_path, sock_path = server_env

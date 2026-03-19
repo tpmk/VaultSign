@@ -169,11 +169,19 @@ class SignerServer:
         method = request.get("method", "")
         params = request.get("params", {})
 
+        if not isinstance(params, dict):
+            err = IPCProtocolError("params must be an object")
+            return (json.dumps({"id": req_id, "error": err.to_dict()}) + "\n").encode()
+
         try:
             result = self._dispatch(method, params)
             return (json.dumps({"id": req_id, "result": result}) + "\n").encode()
         except SignerError as e:
             return (json.dumps({"id": req_id, "error": e.to_dict()}) + "\n").encode()
+        except Exception:
+            logger.error("Unexpected error handling %s", method, exc_info=True)
+            err = IPCProtocolError("Internal error")
+            return (json.dumps({"id": req_id, "error": err.to_dict()}) + "\n").encode()
 
     def _dispatch(self, method: str, params: dict) -> dict:
         handlers = {
