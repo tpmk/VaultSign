@@ -147,9 +147,14 @@ class SignerServer:
         try:
             text = data.decode("utf-8").strip()
             if len(text) > self.config.max_request_size:
-                raise IPCProtocolError("Request too large")
+                err = IPCProtocolError("Request too large")
+                return (json.dumps({"id": None, "error": err.to_dict()}) + "\n").encode()
             request = json.loads(text)
         except (json.JSONDecodeError, UnicodeDecodeError):
+            err = IPCProtocolError("Invalid JSON")
+            return (json.dumps({"id": None, "error": err.to_dict()}) + "\n").encode()
+
+        if not isinstance(request, dict):
             err = IPCProtocolError("Invalid JSON")
             return (json.dumps({"id": None, "error": err.to_dict()}) + "\n").encode()
 

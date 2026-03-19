@@ -447,6 +447,49 @@ def test_unexpected_exception_returns_internal_error(running_server):
         server._handle_ping = original
 
 
+def test_request_too_large_returns_protocol_error(running_server):
+    """Oversized requests should return a structured error, not drop the connection."""
+    server, address, token = running_server
+    # Build a request whose JSON encoding exceeds the default max_request_size
+    huge_params = {"data": "x" * (server.config.max_request_size + 1)}
+    req = {"version": 1, "id": "rl1", "method": "ping", "params": huge_params}
+    if token is not None:
+        req["token"] = token
+    resp = _send_request(address, req)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+    assert "too large" in resp["error"]["message"].lower()
+
+
+def _send_raw(address, raw_bytes: bytes, token: str | None = None) -> dict:
+    """Send raw bytes to the server and return the parsed JSON response."""
+    if isinstance(address, str):
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.connect(address)
+    else:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect(address)
+    s.sendall(raw_bytes)
+    data = b""
+    while True:
+        chunk = s.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+        if b"\n" in data:
+            break
+    s.close()
+    return json.loads(data.decode().strip())
+
+
+def test_non_dict_json_returns_protocol_error(running_server):
+    """A JSON value that isn't an object should return a structured error."""
+    server, address, token = running_server
+    resp = _send_raw(address, b'"just a string"\n')
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+
+
 def test_tcp_token_auth(server_env):
     """TCP mode requires a valid token; requests without it are rejected."""
     config, ks_path, sock_path = server_env
