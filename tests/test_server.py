@@ -562,6 +562,20 @@ def test_get_key_name_must_be_string(running_server):
     assert resp["error"]["code"] == 1008
 
 
+def test_sign_typed_data_fields_must_be_objects(running_server):
+    server, address, token = running_server
+    _send_request(address, {
+        "version": 1, "id": "std0", "method": "unlock",
+        "params": {"password": "testpass1234"}
+    }, token=token)
+    resp = _send_request(address, {
+        "version": 1, "id": "std1", "method": "sign_typed_data",
+        "params": {"chain": "evm", "domain": "not-an-object", "types": {}, "value": {}}
+    }, token=token)
+    assert "error" in resp
+    assert resp["error"]["code"] == 1008
+
+
 def test_tcp_token_auth(server_env):
     """TCP mode requires a valid token; requests without it are rejected."""
     config, ks_path, sock_path = server_env
