@@ -117,7 +117,7 @@ def get_key(self, name: str) -> str:
     return self.get_key_info(name).value
 ```
 
-No content sniffing. No try/except `UnicodeDecodeError`.
+No content sniffing in `get_key()` itself — format decision logic lives in `get_key_info()`.
 
 ### Caller impact
 
@@ -201,7 +201,7 @@ All test files that reference `_HAS_AF_UNIX` must be updated:
 ### Logging
 
 - `platform_win.py`: add `logger = logging.getLogger(__name__)`. Use `logger.warning()` for fallback and failure messages.
-- Verify `server.py` and `client.py` follow the same pattern. Note: `client.py` currently has no `logger`; add one if logging is needed for the key decoding warning path (opaque key UTF-8 decode failure).
+- Verify `server.py` and `client.py` follow the same pattern. `client.py` currently has no `logger`; one must be added — it is required for the opaque key UTF-8 decode fallback warning in `get_key_info()`.
 
 ### Type annotations
 
