@@ -1,7 +1,8 @@
 # src/vaultsign/server.py
 """IPC signing server.
 
-Uses Unix domain sockets on Linux/macOS and TCP localhost on Windows.
+Transport mode is determined by vaultsign.transport.get_transport_mode():
+Unix domain sockets on Linux/macOS, TCP localhost on Windows.
 """
 
 import base64
@@ -13,6 +14,7 @@ import sys
 import threading
 import time
 
+from vaultsign import transport
 from .config import Config
 from .errors import (
     IPCProtocolError,
@@ -32,8 +34,6 @@ from .security.zeroize import zeroize
 from .state import SignerState, SignerStateMachine
 
 logger = logging.getLogger(__name__)
-
-_HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
 
 _MAX_MSG = 1048576  # 1 MB default
 
@@ -330,7 +330,7 @@ class SignerServer:
 
     def serve(self) -> None:
         """Start serving on Unix domain socket or TCP localhost."""
-        if _HAS_AF_UNIX:
+        if transport.get_transport_mode() == "unix":
             self._serve_unix()
         else:
             self._serve_tcp()

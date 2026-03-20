@@ -582,11 +582,9 @@ def test_tcp_token_auth(server_env):
     server = SignerServer(config)
     server.load_keystore()
 
-    # Force TCP mode
-    import vaultsign.server as server_mod
-    original = server_mod._HAS_AF_UNIX
-    server_mod._HAS_AF_UNIX = False
-    try:
+    from unittest.mock import patch
+
+    with patch("vaultsign.transport.get_transport_mode", return_value="tcp"):
         t = threading.Thread(target=server.serve, daemon=True)
         t.start()
         for _ in range(50):
@@ -610,6 +608,5 @@ def test_tcp_token_auth(server_env):
         })
         assert "result" in resp
         assert resp["result"]["status"] == "ok"
-    finally:
+
         server.shutdown()
-        server_mod._HAS_AF_UNIX = original
