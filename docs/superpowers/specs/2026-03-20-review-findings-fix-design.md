@@ -47,10 +47,10 @@ Extract two internal functions from the existing code:
 _set_acl_pywin32(path: str) -> None
     Raises: ImportError, pywintypes.error, OSError
 
-_set_acl_icacls(path: str) -> None
+_set_acl_icacls(path: str) -> bool
     Uses subprocess.run() without check=True (preserving current behavior).
-    Returns silently on failure after logging a warning.
-    Raises: OSError (only for subprocess launch failure)
+    Returns True on success, False on failure. Never raises.
+    Catches OSError from subprocess launch failure internally.
 ```
 
 Note: the current icacls path uses `subprocess.run()` without `check=True` and inspects `result.returncode` manually. The refactored `_set_acl_icacls` preserves this pattern — it does not use `check=True`, so `subprocess.CalledProcessError` is never raised. Failure is detected via return code and logged as a warning.
