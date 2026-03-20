@@ -7,8 +7,7 @@ import uuid
 from pathlib import Path
 
 from .errors import SignerError, SignerConnectionError, IPCProtocolError
-
-_HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
+from vaultsign import transport
 _MAX_RESPONSE = 1048576  # 1 MB, matches server _MAX_MSG
 
 
@@ -59,12 +58,12 @@ class SignerClient:
         self._port = port
         self._token: str | None = None
 
-        if socket_path and not _HAS_AF_UNIX:
+        if socket_path and transport.get_transport_mode() != "unix":
             # Windows: derive TCP connection info from port/token files
             self._resolve_tcp_from_socket_path(socket_path)
         elif not socket_path and not host:
             # Default discovery: Unix socket or Windows TCP discovery files
-            if _HAS_AF_UNIX:
+            if transport.get_transport_mode() == "unix":
                 self._socket_path = _default_socket_path()
             else:
                 # Windows: read port/token from default home's discovery files
@@ -98,7 +97,7 @@ class SignerClient:
     def _connect(self) -> socket.socket:
         """Create and connect a socket."""
         try:
-            if self._socket_path and _HAS_AF_UNIX:
+            if self._socket_path and transport.get_transport_mode() == "unix":
                 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 s.settimeout(30.0)
                 s.connect(self._socket_path)

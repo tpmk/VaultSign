@@ -13,7 +13,8 @@ import pytest
 from vaultsign.client import SignerClient, _MAX_RESPONSE
 from vaultsign.errors import SignerLockedError, SignerConnectionError, IPCProtocolError
 
-_HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
+from vaultsign import transport
+_USE_UNIX = transport.get_transport_mode() == "unix"
 
 
 @pytest.fixture
@@ -26,7 +27,7 @@ def mock_server(tmp_path):
         responses[method] = (result, error)
 
     def server_loop():
-        if _HAS_AF_UNIX:
+        if _USE_UNIX:
             srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             srv.bind(sock_path)
         else:
@@ -58,7 +59,7 @@ def mock_server(tmp_path):
             conn.close()
 
         srv.close()
-        if _HAS_AF_UNIX and os.path.exists(sock_path):
+        if _USE_UNIX and os.path.exists(sock_path):
             os.unlink(sock_path)
 
     server_loop.running = True
@@ -66,7 +67,7 @@ def mock_server(tmp_path):
     t = threading.Thread(target=server_loop, daemon=True)
     t.start()
 
-    if _HAS_AF_UNIX:
+    if _USE_UNIX:
         for _ in range(50):
             if os.path.exists(sock_path):
                 break
@@ -140,7 +141,7 @@ def _one_shot_server(tmp_path, response_bytes):
     sock_path = str(tmp_path / "test.sock")
 
     def serve():
-        if _HAS_AF_UNIX:
+        if _USE_UNIX:
             srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             srv.bind(sock_path)
         else:
@@ -160,7 +161,7 @@ def _one_shot_server(tmp_path, response_bytes):
     t = threading.Thread(target=serve, daemon=True)
     t.start()
 
-    if _HAS_AF_UNIX:
+    if _USE_UNIX:
         for _ in range(50):
             if os.path.exists(sock_path):
                 break
@@ -222,7 +223,7 @@ def test_default_client_reads_discovery_files_on_windows(tmp_path):
     (home_dir / "signer.port").write_text("54321")
     (home_dir / "signer.token").write_text("test-token-abc")
 
-    with patch("vaultsign.client._HAS_AF_UNIX", False), \
+    with patch("vaultsign.transport.get_transport_mode", return_value="tcp"), \
          patch("vaultsign.client._default_socket_path",
                return_value=str(home_dir / "signer.sock")):
         client = SignerClient()
@@ -238,7 +239,7 @@ def test_default_client_raises_when_no_discovery_files(tmp_path):
     home_dir = tmp_path / ".vaultsign"
     home_dir.mkdir()
 
-    with patch("vaultsign.client._HAS_AF_UNIX", False), \
+    with patch("vaultsign.transport.get_transport_mode", return_value="tcp"), \
          patch("vaultsign.client._default_socket_path",
                return_value=str(home_dir / "signer.sock")):
         with pytest.raises(SignerConnectionError, match="port file"):

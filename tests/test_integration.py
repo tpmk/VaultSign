@@ -22,7 +22,8 @@ TEST_EVM_ADDRESS = "0x864eC9c7662f55Af9f7637162042d9F5b2aDb1dB"
 TEST_PASSWORD = "integration_test_pw"
 TEST_OPAQUE_KEY = "my-lighter-api-secret-key-value"
 
-_HAS_AF_UNIX = hasattr(socket, "AF_UNIX")
+from vaultsign import transport
+_USE_UNIX = transport.get_transport_mode() == "unix"
 
 
 @pytest.fixture
@@ -58,7 +59,7 @@ def full_env(tmp_path):
     t.start()
 
     # Wait for server to be ready
-    if _HAS_AF_UNIX:
+    if _USE_UNIX:
         for _ in range(50):
             if os.path.exists(sock_path):
                 break
@@ -179,7 +180,7 @@ def full_env_with_opaque(tmp_path):
     t = threading.Thread(target=server.serve, daemon=True)
     t.start()
 
-    if _HAS_AF_UNIX:
+    if _USE_UNIX:
         for _ in range(50):
             if os.path.exists(sock_path):
                 break
