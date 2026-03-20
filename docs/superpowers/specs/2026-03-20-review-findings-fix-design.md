@@ -91,24 +91,28 @@ Add `logger = logging.getLogger(__name__)` for all warning output.
 Add a `KeyInfo` dataclass:
 
 ```python
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class KeyInfo:
     value: str            # Formatted key (UTF-8 text or hex)
     key_type: str         # "opaque", "secp256k1", etc.
-    raw_bytes: bytes      # Raw key bytes
     address: str | None   # Key address (None for opaque keys)
 ```
 
-Note: `address` is `str | None` to match the server wire format. The server's `_handle_get_key` returns `key.address` which is `str | None` in `KeyEntry`. No coercion — `None` is passed through.
+Design notes:
+
+- **No `raw_bytes` field.** VaultSign is a key management tool that treats secret material lifetime seriously. Exposing raw key bytes in a returned dataclass creates a long-lived, hard-to-zeroize copy of secret material. The `get_key()` bug fix does not require callers to access raw bytes — it only requires correct formatting via `key_type`. Callers that genuinely need raw bytes can continue using `_send()` directly, which is the existing pattern and keeps the caller responsible for cleanup.
+- **Not `frozen=True`.** A mutable dataclass allows callers to clear `value` after use if needed (e.g., `info.value = ""`). This aligns with the project's security posture of enabling explicit zeroization.
+- `address` is `str | None` to match the server wire format. The server's `_handle_get_key` returns `key.address` which is `str | None` in `KeyEntry`. No coercion — `None` is passed through.
 
 Add `get_key_info(name: str) -> KeyInfo`:
 
 - Calls `self._send("get_key", {"name": name})`
-- Reads `result["key_type"]` to decide format. If `key_type` is missing from the response (e.g., older server), raise `IPCError` with a clear message indicating protocol version mismatch. This field is always present in the current server implementation.
+- Reads `result["key_type"]` to decide format. If `key_type` is missing from the response (e.g., older server), raise `IPCProtocolError` with a clear message indicating protocol version mismatch. This field is always present in the current server implementation.
 - Format decision:
   - `"opaque"` → `value = key_bytes.decode("utf-8")`. If `UnicodeDecodeError` is raised (non-UTF-8 opaque data from a programmatic source), fall back to `key_bytes.hex()` and log a warning.
   - All other types → `value = key_bytes.hex()`
-- Returns `KeyInfo` with all fields populated
+- Raw `key_bytes` are used only within the method body for format conversion and are not stored in the returned `KeyInfo`.
+- Returns `KeyInfo` with `value`, `key_type`, `address` populated
 
 Rewrite `get_key(name: str) -> str` as:
 
@@ -170,15 +174,27 @@ def get_transport_mode() -> Literal["unix", "tcp"]:
 Changes to `server.py`:
 
 - Remove `_HAS_AF_UNIX = hasattr(socket, "AF_UNIX")`
-- Import `get_transport_mode` from `transport.py`
-- Replace `if _HAS_AF_UNIX:` with `if get_transport_mode() == "unix":`
+- Import the module: `from vaultsign import transport` (not `from vaultsign.transport import get_transport_mode`)
+- Replace `if _HAS_AF_UNIX:` with `if transport.get_transport_mode() == "unix":`
 - Update module docstring to reference explicit platform policy
 
 Changes to `client.py`:
 
 - Remove `_HAS_AF_UNIX = hasattr(socket, "AF_UNIX")`
-- Import `get_transport_mode` from `transport.py`
-- Replace all `_HAS_AF_UNIX` checks with `get_transport_mode() == "unix"`
+- Import the module: `from vaultsign import transport` (not `from vaultsign.transport import get_transport_mode`)
+- Replace all `_HAS_AF_UNIX` checks with `transport.get_transport_mode() == "unix"`
+
+**Import pattern rationale:** Using `from vaultsign import transport` and calling `transport.get_transport_mode()` ensures that `unittest.mock.patch("vaultsign.transport.get_transport_mode", ...)` correctly intercepts calls from both `server.py` and `client.py`. If we used `from vaultsign.transport import get_transport_mode`, each module would bind the function to a local name at import time, and patching the original module would not affect the already-imported references. This is a standard Python mocking pitfall.
+
+### Behavior change and backward compatibility
+
+This is not a pure refactor — it is a deliberate behavior change on Windows. On modern Python 3.9+ where `socket.AF_UNIX` exists on Windows, the current code would use Unix domain sockets. After this change, Windows always uses TCP.
+
+Compatibility notes:
+
+- **`socket_path` on Windows remains a discovery hint, not a deprecated parameter.** In TCP mode, `client.py` already uses `socket_path` to derive the port and token file paths (via `_resolve_tcp_from_socket_path`). This semantics is unchanged. The parameter name is admittedly confusing for TCP mode, but renaming it is out of scope — the existing calling convention is preserved.
+- **No migration needed for existing users.** VaultSign is a local-only tool. There is no persistent server state that depends on the transport choice. A server restart after upgrade will use TCP on Windows; clients will connect via TCP. No data loss, no config change required.
+- **If a Windows user was relying on AF_UNIX behavior** (unlikely, since the docstring said TCP and AF_UNIX on Windows is niche), they would need to be aware. Given the project's current user base and the fact that the docstring always advertised TCP, this is an acceptable change.
 
 ### New tests (`tests/test_transport.py`)
 
@@ -205,7 +221,7 @@ All test files that reference `_HAS_AF_UNIX` must be updated:
 
 ### Type annotations
 
-- `KeyInfo` dataclass provides typed access to key data.
+- `KeyInfo` dataclass provides typed access to key metadata and formatted value (no raw bytes).
 - `get_transport_mode()` uses `Literal["unix", "tcp"]`.
 - `set_file_owner_only()` documents that it never raises.
 
