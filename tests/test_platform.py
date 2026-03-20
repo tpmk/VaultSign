@@ -102,3 +102,111 @@ def test_lock_memory_sets_virtuallock_argtypes():
     kernel32 = ctypes.windll.kernel32
     assert kernel32.VirtualLock.argtypes == [ctypes.c_void_p, ctypes.c_size_t]
     assert kernel32.VirtualLock.restype == ctypes.c_int
+
+
+def test_set_file_owner_only_pywin32_error_falls_back_to_icacls(tmp_path, caplog):
+    """When pywin32 imports succeed but SetFileSecurity raises, fall back to icacls."""
+    if sys.platform != "win32":
+        pytest.skip("Windows-only test")
+
+    from unittest.mock import MagicMock
+    from vaultsign.security.platform_win import set_file_owner_only
+
+    f = tmp_path / "test.txt"
+    f.write_text("data")
+
+    # Create a fake pywintypes.error
+    class FakePywinError(Exception):
+        pass
+
+    mock_win32api = MagicMock()
+    mock_win32security = MagicMock()
+    mock_ntsecuritycon = MagicMock()
+    mock_pywintypes = MagicMock()
+    mock_pywintypes.error = FakePywinError
+    mock_win32security.SetFileSecurity.side_effect = FakePywinError("access denied")
+
+    with patch.dict("sys.modules", {
+        "win32api": mock_win32api,
+        "win32security": mock_win32security,
+        "ntsecuritycon": mock_ntsecuritycon,
+        "pywintypes": mock_pywintypes,
+    }), \
+         patch("vaultsign.security.platform_win.subprocess.run") as mock_run, \
+         caplog.at_level(logging.WARNING):
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=0, stderr=b"",
+        )
+        set_file_owner_only(str(f))
+
+    # Should have fallen back to icacls
+    mock_run.assert_called_once()
+    cmd = mock_run.call_args[0][0]
+    assert cmd[0] == "icacls"
+
+
+def test_set_file_owner_only_both_methods_fail_no_exception(tmp_path, caplog):
+    """When both pywin32 and icacls fail, warn but don't raise."""
+    if sys.platform != "win32":
+        pytest.skip("Windows-only test")
+
+    from unittest.mock import MagicMock
+    from vaultsign.security.platform_win import set_file_owner_only
+
+    f = tmp_path / "test.txt"
+    f.write_text("data")
+
+    class FakePywinError(Exception):
+        pass
+
+    mock_win32api = MagicMock()
+    mock_win32security = MagicMock()
+    mock_ntsecuritycon = MagicMock()
+    mock_pywintypes = MagicMock()
+    mock_pywintypes.error = FakePywinError
+    mock_win32security.SetFileSecurity.side_effect = FakePywinError("access denied")
+
+    with patch.dict("sys.modules", {
+        "win32api": mock_win32api,
+        "win32security": mock_win32security,
+        "ntsecuritycon": mock_ntsecuritycon,
+        "pywintypes": mock_pywintypes,
+    }), \
+         patch("vaultsign.security.platform_win.subprocess.run") as mock_run, \
+         caplog.at_level(logging.WARNING):
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[], returncode=1, stderr=b"access denied",
+        )
+        # Should NOT raise
+        set_file_owner_only(str(f))
+
+    assert "icacls failed" in caplog.text
+
+
+def test_set_file_owner_only_pywin32_success_no_icacls(tmp_path):
+    """When pywin32 succeeds, icacls should not be called."""
+    if sys.platform != "win32":
+        pytest.skip("Windows-only test")
+
+    from unittest.mock import MagicMock
+    from vaultsign.security.platform_win import set_file_owner_only
+
+    f = tmp_path / "test.txt"
+    f.write_text("data")
+
+    mock_win32api = MagicMock()
+    mock_win32security = MagicMock()
+    mock_ntsecuritycon = MagicMock()
+    mock_ntsecuritycon.TOKEN_QUERY = 0x0008
+    mock_ntsecuritycon.FILE_ALL_ACCESS = 0x1F01FF
+
+    with patch.dict("sys.modules", {
+        "win32api": mock_win32api,
+        "win32security": mock_win32security,
+        "ntsecuritycon": mock_ntsecuritycon,
+    }), \
+         patch("vaultsign.security.platform_win.subprocess.run") as mock_run:
+        set_file_owner_only(str(f))
+
+    # icacls should NOT have been called
+    mock_run.assert_not_called()
