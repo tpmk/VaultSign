@@ -213,11 +213,9 @@ def test_get_key_opaque_lifecycle(full_env_with_opaque):
     key = client.get_key("lighter-api")
     assert key == TEST_OPAQUE_KEY
 
-    # get_key EVM — also works (raw binary key, use _send to avoid UTF-8 decode)
-    import base64
-    result = client._send("get_key", {"name": "test-evm"})
-    evm_key_bytes = base64.b64decode(result["key"])
-    assert len(evm_key_bytes) > 0
+    # get_key EVM — now correctly returns hex via key_type metadata
+    evm_key = client.get_key("test-evm")
+    assert evm_key == TEST_EVM_KEY.hex()
 
     # Existing sign_transaction still works
     result = client.evm.sign_transaction({
