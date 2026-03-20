@@ -39,21 +39,27 @@ Overall approach: broader refactor pass — fix the bugs and improve code qualit
 
 ### New design
 
-Extract two internal functions:
+The current code already has an icacls fallback inside the `except ImportError` block (including `USERNAME` env var handling). This refactor restructures the existing logic to widen the catch scope, not add entirely new fallback functionality.
+
+Extract two internal functions from the existing code:
 
 ```
 _set_acl_pywin32(path: str) -> None
     Raises: ImportError, pywintypes.error, OSError
 
 _set_acl_icacls(path: str) -> None
-    Raises: OSError, subprocess.CalledProcessError
+    Uses subprocess.run() without check=True (preserving current behavior).
+    Returns silently on failure after logging a warning.
+    Raises: OSError (only for subprocess launch failure)
 ```
+
+Note: the current icacls path uses `subprocess.run()` without `check=True` and inspects `result.returncode` manually. The refactored `_set_acl_icacls` preserves this pattern — it does not use `check=True`, so `subprocess.CalledProcessError` is never raised. Failure is detected via return code and logged as a warning.
 
 Orchestrator `set_file_owner_only(path: str) -> None`:
 
 1. Try `_set_acl_pywin32(path)`.
 2. On `ImportError` or `pywintypes.error` or `OSError`: log warning, try `_set_acl_icacls(path)`.
-3. On icacls failure: log warning, return without raising.
+3. On icacls failure (non-zero return code or `OSError`): log warning, return without raising.
 
 The function never raises. Callers do not need to change.
 
@@ -87,17 +93,20 @@ Add a `KeyInfo` dataclass:
 ```python
 @dataclasses.dataclass(frozen=True)
 class KeyInfo:
-    value: str       # Formatted key (UTF-8 text or hex)
-    key_type: str    # "opaque", "secp256k1", etc.
-    raw_bytes: bytes # Raw key bytes
-    address: str     # Key address (empty string if N/A)
+    value: str            # Formatted key (UTF-8 text or hex)
+    key_type: str         # "opaque", "secp256k1", etc.
+    raw_bytes: bytes      # Raw key bytes
+    address: str | None   # Key address (None for opaque keys)
 ```
+
+Note: `address` is `str | None` to match the server wire format. The server's `_handle_get_key` returns `key.address` which is `str | None` in `KeyEntry`. No coercion — `None` is passed through.
 
 Add `get_key_info(name: str) -> KeyInfo`:
 
 - Calls `self._send("get_key", {"name": name})`
-- Reads `result["key_type"]` to decide format:
-  - `"opaque"` → `value = key_bytes.decode("utf-8")`
+- Reads `result["key_type"]` to decide format. If `key_type` is missing from the response (e.g., older server), raise `IPCError` with a clear message indicating protocol version mismatch. This field is always present in the current server implementation.
+- Format decision:
+  - `"opaque"` → `value = key_bytes.decode("utf-8")`. If `UnicodeDecodeError` is raised (non-UTF-8 opaque data from a programmatic source), fall back to `key_bytes.hex()` and log a warning.
   - All other types → `value = key_bytes.hex()`
 - Returns `KeyInfo` with all fields populated
 
@@ -119,7 +128,7 @@ No content sniffing. No try/except `UnicodeDecodeError`.
 ### Test changes
 
 - New regression test: create a secp256k1 key whose raw bytes are valid UTF-8 (e.g., 32 bytes of `0x41`). Call `get_key()`, assert result is hex (`"41" * 32`), not text (`"A" * 32`).
-- Update `test_integration.py`: replace the `_send()` workaround for EVM key retrieval with a direct `get_key()` call, verifying it now returns hex correctly.
+- Update `test_integration.py`: replace the `_send()` workaround for EVM key retrieval with a direct `get_key()` call. After the fix, `client.get_key("test-evm")` should return the hex string of the EVM private key (e.g., `assert key == expected_key_bytes.hex()`), not a UTF-8 text interpretation.
 
 ---
 
@@ -177,9 +186,13 @@ Changes to `client.py`:
 - Patch `sys.platform = "linux"` + AF_UNIX available → assert `"unix"`
 - Patch AF_UNIX absent on any platform → assert `"tcp"`
 
-### Test migration (`tests/test_server.py`)
+### Test migration
 
-- Replace `server_mod._HAS_AF_UNIX = False` patch with `unittest.mock.patch("vaultsign.transport.get_transport_mode", return_value="tcp")`
+All test files that reference `_HAS_AF_UNIX` must be updated:
+
+- `tests/test_server.py`: Replace `server_mod._HAS_AF_UNIX = False` with `unittest.mock.patch("vaultsign.transport.get_transport_mode", return_value="tcp")`
+- `tests/test_client.py`: Replace any `vaultsign.client._HAS_AF_UNIX` patches with `unittest.mock.patch("vaultsign.transport.get_transport_mode", return_value=...)`
+- `tests/test_integration.py`: Replace module-level `_HAS_AF_UNIX = hasattr(socket, "AF_UNIX")` usage in fixtures with `vaultsign.transport.get_transport_mode()` calls
 
 ---
 
@@ -188,7 +201,7 @@ Changes to `client.py`:
 ### Logging
 
 - `platform_win.py`: add `logger = logging.getLogger(__name__)`. Use `logger.warning()` for fallback and failure messages.
-- Verify `server.py` and `client.py` follow the same pattern.
+- Verify `server.py` and `client.py` follow the same pattern. Note: `client.py` currently has no `logger`; add one if logging is needed for the key decoding warning path (opaque key UTF-8 decode failure).
 
 ### Type annotations
 
@@ -200,6 +213,12 @@ Changes to `client.py`:
 
 - Remove `_send()` workaround in `test_integration.py`.
 - Replace raw `_HAS_AF_UNIX` patching with `transport.get_transport_mode` mock.
+
+### Implementation ordering
+
+Finding 3 (transport) should be implemented first since it touches `client.py` and `server.py` at the import/module level. Finding 2 (key decoding) modifies `client.py` method internals and can follow. Finding 1 (ACL) is independent and can be done in any order.
+
+Recommended order: 3 → 2 → 1.
 
 ### Scope boundaries
 
