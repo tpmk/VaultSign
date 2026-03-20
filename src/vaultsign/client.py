@@ -1,13 +1,31 @@
 """SignerClient — Python client for the VaultSign daemon."""
 
 import base64
+import dataclasses
 import json
+import logging
 import socket
 import uuid
 from pathlib import Path
 
 from .errors import SignerError, SignerConnectionError, IPCProtocolError
 from vaultsign import transport
+
+logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class KeyInfo:
+    """Decrypted key metadata and formatted value.
+
+    Mutable to allow callers to clear value after use (info.value = "").
+    Does not hold raw key bytes — only the formatted string representation.
+    """
+    value: str
+    key_type: str
+    address: str | None
+
+
 _MAX_RESPONSE = 1048576  # 1 MB, matches server _MAX_MSG
 
 
@@ -161,15 +179,42 @@ class SignerClient:
     def unlock(self, password: str, timeout: int = 0) -> dict:
         return self._send("unlock", {"password": password, "timeout": timeout})
 
+    def get_key_info(self, name: str) -> KeyInfo:
+        """Retrieve a decrypted key with metadata.
+
+        Returns a KeyInfo with the formatted value, key_type, and address.
+        Format is determined by key_type: opaque keys are UTF-8 decoded,
+        all other types are hex-encoded.
+        """
+        result = self._send("get_key", {"name": name})
+        if "key_type" not in result:
+            raise IPCProtocolError(
+                "Server response missing 'key_type' field. "
+                "This may indicate a protocol version mismatch."
+            )
+        key_bytes = base64.b64decode(result["key"])
+        key_type = result["key_type"]
+        if key_type == "opaque":
+            try:
+                value = key_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                logger.warning(
+                    "Opaque key %r contains non-UTF-8 bytes; returning hex",
+                    name,
+                )
+                value = key_bytes.hex()
+        else:
+            value = key_bytes.hex()
+        return KeyInfo(
+            value=value,
+            key_type=key_type,
+            address=result.get("address"),
+        )
+
     def get_key(self, name: str) -> str:
         """Retrieve a decrypted key by name.
 
-        Returns the key as a string: UTF-8 decoded for opaque keys (text input),
-        hex-encoded for binary keys (e.g., secp256k1 raw bytes).
+        Returns the key as a string: UTF-8 decoded for opaque keys,
+        hex-encoded for binary keys (e.g., secp256k1).
         """
-        result = self._send("get_key", {"name": name})
-        key_bytes = base64.b64decode(result["key"])
-        try:
-            return key_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            return key_bytes.hex()
+        return self.get_key_info(name).value

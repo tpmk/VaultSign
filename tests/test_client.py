@@ -216,6 +216,56 @@ def test_get_key_returns_decoded_string():
     mock_send.assert_called_once_with("get_key", {"name": "lighter-api"})
 
 
+def test_get_key_binary_key_valid_utf8_returns_hex():
+    """A binary key whose bytes happen to be valid UTF-8 must return hex, not text."""
+    binary_key = bytes([0x41] * 32)
+    mock_result = {
+        "name": "test-evm",
+        "key_type": "secp256k1",
+        "key": base64.b64encode(binary_key).decode(),
+        "address": "0x1234",
+    }
+
+    client = SignerClient(host="127.0.0.1", port=9999)
+    with patch.object(client, "_send", return_value=mock_result):
+        result = client.get_key("test-evm")
+
+    assert result == "41" * 32  # hex, not "A" * 32
+
+
+def test_get_key_info_returns_dataclass():
+    """get_key_info returns a KeyInfo with value, key_type, address."""
+    original_key = "my-secret"
+    mock_result = {
+        "name": "test-opaque",
+        "key_type": "opaque",
+        "key": base64.b64encode(original_key.encode()).decode(),
+        "address": None,
+    }
+
+    client = SignerClient(host="127.0.0.1", port=9999)
+    with patch.object(client, "_send", return_value=mock_result):
+        info = client.get_key_info("test-opaque")
+
+    assert info.value == "my-secret"
+    assert info.key_type == "opaque"
+    assert info.address is None
+
+
+def test_get_key_info_missing_key_type_raises():
+    """If server response lacks key_type, raise IPCProtocolError."""
+    mock_result = {
+        "name": "test",
+        "key": base64.b64encode(b"data").decode(),
+        "address": None,
+    }
+
+    client = SignerClient(host="127.0.0.1", port=9999)
+    with patch.object(client, "_send", return_value=mock_result):
+        with pytest.raises(IPCProtocolError, match="key_type"):
+            client.get_key_info("test")
+
+
 def test_default_client_reads_discovery_files_on_windows(tmp_path):
     """SignerClient() with no args on Windows should read signer.port/signer.token."""
     home_dir = tmp_path / ".vaultsign"
